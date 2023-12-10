@@ -1,4 +1,5 @@
 #pragma once
+#include <stdint.h>
 
 /*
  * Also see here: https://wiki.osdev.org/Global_Descriptor_Table#Segment_Descriptor

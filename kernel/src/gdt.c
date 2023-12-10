@@ -2,6 +2,10 @@
 
 #include "gdt.h"
 
+typedef struct {
+
+} __attribute__((packed)) tss_entry;
+
 struct {
     uint16_t size;
     uint64_t gdt_ptr;
@@ -39,7 +43,7 @@ void initGDT(void)
     // Present, Segment, Read- and Writeable
     gdt[2].access_byte = 0b10010010;
     // flags Granularity (mode irrelevant), limit 0xF
-    gdt[2].limit_high_and_flags = 0b11001111;
+    gdt[2].limit_high_and_flags = 0b10101111;
     gdt[2].base_high = 0;
 
     // user code segment
@@ -59,10 +63,11 @@ void initGDT(void)
     // Present, DPL ring 3, Segment, Read- and Writeable
     gdt[4].access_byte = 0b11110010;
     // flags Granularity (mode irrelevant), limit 0xF
-    gdt[4].limit_high_and_flags = 0b11001111;
+    gdt[4].limit_high_and_flags = 0b10101111;
     gdt[4].base_high = 0;
 
     // tss?
+    // [TODO]
 
     // gdtr
     gdtr.size = sizeof(gdt);
@@ -74,10 +79,22 @@ void initGDT(void)
 void loadGDT(void)
 {
     asm volatile (
-        "mov %0, %%rax\n\t"
-        "lgdt (%%rax)\n\t"
+        "mov %0, %%rdi\n"
+        "lgdt (%%rdi)\n"
+        "push $0x08\n"
+        "lea 1f(%%rip), %%rax\n"
+        "push %%rax\n"
+        "lretq\n"
+        "1:\n"
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        "mov %%ax, %%ss\n"
+        "retq"
         :
         : "r" (&gdtr)
-        : "rax", "memory"
+        : "memory"
     );
 }

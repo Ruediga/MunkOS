@@ -47,7 +47,7 @@ run-hdd: $(IMAGE_NAME).hdd
 run-hdd-uefi: ovmf $(IMAGE_NAME).hdd
 	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd -hda $(IMAGE_NAME).hdd
 
-.PHONY: run-hdd-uefi
+.PHONY: run-hdd-uefi-gdb
 run-hdd-uefi-gdb: ovmf $(IMAGE_NAME).hdd
 	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd -s -S -hda $(IMAGE_NAME).hdd
 

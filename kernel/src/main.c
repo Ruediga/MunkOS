@@ -27,6 +27,11 @@ struct limine_framebuffer_request framebuffer_request = {
     .revision = 0
 };
 
+struct limine_memmap_request memmap_request = {
+    .id = LIMINE_MEMMAP_REQUEST,
+    .revision = 0
+};
+
 // Halt and catch fire function.
 static void hcf(void) {
     asm ("cli");
@@ -42,6 +47,9 @@ struct flanterm_context *ft_ctx;
 // If renaming _start() to something else, make sure to change the
 // linker script accordingly.
 void _start(void) {
+    // set up new stack
+    // [TODO]
+
     // Ensure the bootloader actually understands our base revision (see spec).
     if (LIMINE_BASE_REVISION_SUPPORTED == false) {
         hcf();
@@ -64,16 +72,28 @@ void _start(void) {
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch
     );
 
-    const char flanterm_init_msg[] = "Flanterm initialized\r\n";
-
-    flanterm_write(ft_ctx, flanterm_init_msg, sizeof(flanterm_init_msg));
-
     // load a GDT
     initGDT();
     printf("GDT set up\n\r");
 
-    printf("GDT: 0x%02x\n", gdt[1].access_byte);
+    // read and print memory map
+    if (memmap_request.response == NULL
+     || memmap_request.response->entry_count <= 1) {
+        hcf();
+    }
+    struct limine_memmap_entry *memmap = memmap_request.response->entries[0];
 
-    // hang
+    uint64_t total_memory = 0;
+    for (uint64_t i = 0; i < memmap_request.response->entry_count; i++) {
+        printf("Entry %-2lu: Base = 0x%016lx, Length = 0x%016lx, Type = %lu\n\r", i, memmap[i].base, memmap[i].length, memmap[i].type);
+        if (memmap[i].type == 0)
+            total_memory += memmap[i].length;
+    }
+    printf("Done printing memmap, total memory: 0x%016lx\n\r", total_memory);
+
+    // initialize IDT
+    initIDT();
+
+    // done
     hcf();
 }
