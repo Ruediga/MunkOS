@@ -863,7 +863,7 @@ static int _vsnprintf(out_fct_type out, char* buffer, const size_t maxlen, const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "../flanterm/flanterm.h"
+#include "flanterm/flanterm.h"
 void _putchar(char character)
 {
   // for now call flanterm_write()

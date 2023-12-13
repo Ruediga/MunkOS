@@ -11,6 +11,8 @@
 #include "flanterm/backends/fb.h"
 
 #include "gdt.h"
+#include "interrupt/idt.h"
+#include "mm/pmm.h"
 
 // Set the base revision to 1, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -27,13 +29,8 @@ struct limine_framebuffer_request framebuffer_request = {
     .revision = 0
 };
 
-struct limine_memmap_request memmap_request = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
-};
-
 // Halt and catch fire function.
-static void hcf(void) {
+void hcf(void) {
     asm ("cli");
     for (;;) {
         asm ("hlt");
@@ -43,10 +40,10 @@ static void hcf(void) {
 // global flanterm context
 struct flanterm_context *ft_ctx;
 
-// The following will be our kernel's entry point.
-// If renaming _start() to something else, make sure to change the
-// linker script accordingly.
-void _start(void) {
+// linker puts the kernels highest address in here? [TODO]
+extern uint64_t endkernel;
+
+void kernel_entry(void) {
     // set up new stack
     // [TODO]
 
@@ -66,34 +63,63 @@ void _start(void) {
 
     // ==================
     // here MunkOS starts
+    // ==================
+
+    asm volatile ("cli");
 
     // init flanterm (source: https://github.com/mintsuki/flanterm)
     ft_ctx = flanterm_fb_simple_init(
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch
     );
 
+    printf("Limine framebuffer width: %lu, heigth: %lu\n", framebuffer->width, framebuffer->height);
+
     // load a GDT
     initGDT();
-    printf("GDT set up\n\r");
-
-    // read and print memory map
-    if (memmap_request.response == NULL
-     || memmap_request.response->entry_count <= 1) {
+    printf("GDT set up\n");
+    // pmm
+    initPMM();
+    // Testing
+    uint64_t *arr;
+    arr = claimContinousPages(3);
+    extern uint8_t *page_bitmap;
+    printf("bitmap address: %016lX\narray address:  %016lX\n", page_bitmap, arr);
+    if (!arr) {
+        printf("pmm failed claiming page\n");
         hcf();
+    }    
+    memset(arr, 0x0, PAGE_SIZE * 3);
+    for (int i = 0; i < (PAGE_SIZE * 3) / 8; i++) {
+        printf("%lu ", arr[i]);
     }
-    struct limine_memmap_entry *memmap = memmap_request.response->entries[0];
 
-    uint64_t total_memory = 0;
-    for (uint64_t i = 0; i < memmap_request.response->entry_count; i++) {
-        printf("Entry %-2lu: Base = 0x%016lx, Length = 0x%016lx, Type = %lu\n\r", i, memmap[i].base, memmap[i].length, memmap[i].type);
-        if (memmap[i].type == 0)
-            total_memory += memmap[i].length;
+    extern size_t total_available_pages;
+    printf("\n");
+    for (int i = 0; i < 1000; i++) {
+        printf("%lu", (uint64_t)page_bitmap[i]);
     }
-    printf("Done printing memmap, total memory: 0x%016lx\n\r", total_memory);
+    printf("\nTotal available pages: %lu\n", total_available_pages);
 
     // initialize IDT
     initIDT();
+    printf("Interrupts initialized\n");
+    asm volatile ("sti");
 
-    // done
+    /*asm volatile (
+        "int $0x69\n"
+    );
+
+    asm volatile (
+        "movq $50, %rdx\n"
+        "xorq %rax, %rax\n"
+        "div %rdx\n"
+    );*/
+
+    // loop
+    asm volatile (
+        "loop: jmp loop\n"
+    );
+
+    // halt
     hcf();
 }

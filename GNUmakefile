@@ -3,6 +3,8 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := template
 
+override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off -D log.txt
+
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
     ifeq ($(origin $1),default)
@@ -45,7 +47,7 @@ run-hdd: $(IMAGE_NAME).hdd
 
 .PHONY: run-hdd-uefi
 run-hdd-uefi: ovmf $(IMAGE_NAME).hdd
-	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd -hda $(IMAGE_NAME).hdd
+	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd $(EXTRA_QEMU_ARGS) -hda $(IMAGE_NAME).hdd
 
 .PHONY: run-hdd-uefi-gdb
 run-hdd-uefi-gdb: ovmf $(IMAGE_NAME).hdd
