@@ -18,11 +18,21 @@ isr_handler_stub:
     pushq %r15
     # also push control, segment and flag registers [TODO]
     pushfq      # push 64 bit eflag
+    movq %cr0, %rax
+    pushq %rax
+    movq %cr2, %rax
+    pushq %rax
+    movq %cr3, %rax
+    pushq %rax
+    movq %cr4, %rax
+    pushq %rax
 
     # void default_exception_handler(INT_REG_INFO *regs)
     movq %rsp, %rdi
     callq default_exception_handler
 
+    # cr0 - cr4
+    add $32, %rsp
     # popfq back
     addq $8, %rsp
     popq %r15

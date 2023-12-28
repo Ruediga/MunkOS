@@ -1,8 +1,12 @@
 #pragma once
 
 #include <limine.h>
+#include <stdint.h>
+#include <stddef.h>
 
-#define PAGE_SIZE 4096
+// 4096 byte pages
+#define PAGE_SIZE 0x1000
 
 void initPMM(void);
-void *claimContinousPages(uint64_t count);
+void *pmmClaimContiguousPages(size_t count);
+void pmmFreeContiguousPages(void *ptr, size_t count);

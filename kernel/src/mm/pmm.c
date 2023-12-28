@@ -1,25 +1,35 @@
 #include "mm/pmm.h"
 #include "std/kprintf.h"
+#include "pmm.h"
 
-void *kmemset(void *s, int c, size_t n) {
+#include "std/macros.h"
+
+void *kmemset(void *s, uint8_t c, size_t n)
+{
     uint8_t *p = (uint8_t *)s;
 
-    for (size_t i = 0; i < n; i++) {
-        p[i] = (uint8_t)c;
+    for (size_t i = 0; i < n; i++)
+    {
+        p[i] = c;
     }
 
     return s;
 }
 
+struct limine_memmap_response *memmap = 0x0;
+struct limine_hhdm_response *hhdm = 0x0;
+
 // keep track of free and used pages: 0 = unused
-uint8_t *page_bitmap;
+uint8_t *page_bitmap = (uint8_t*)0x0;
+uint64_t pages_usable = 0x0;
+uint64_t pages_reserved = 0x0;
+uint64_t pages_total = 0x0;
+uint64_t pages_in_use = 0x0;
+
 uint64_t highest_address = 0x0;
-uint64_t lowest_address = UINT64_MAX;
+uint64_t bitmap_size_bytes = 0x0;
 
-size_t total_free_bytes = 0;
-size_t total_available_pages = 0;
-size_t bitmap_size_bytes;
-
+// memmap and hhdm
 struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0
@@ -30,80 +40,129 @@ struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
-static void allocateBitmap(void)
+static void initBitmap(void)
 {
-    // find free space in the page map to put bitmap at
-    size_t pages_needed = (bitmap_size_bytes / 4096) + 1;
-    if (total_available_pages < pages_needed) {
-        printf("Something went wrong while allocating space for bitmap, aborting...");
-        asm volatile("cli\n hlt");
-    }
-    // just put the bitmap at the first available addresses for now
-    page_bitmap = (uint8_t*)(lowest_address + hhdm_request.response->offset);
+    uint8_t success = 0;
+    for (size_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = memmap->entries[i];
 
-    printf("Pages needed: %lu\n", pages_needed);
-    kmemset((void*)page_bitmap, 0, bitmap_size_bytes);
-    // mark pages used by the memory map as 1's
-    kmemset((void*)page_bitmap, 1, pages_needed);
-    printf("Allocated space for bitmap!\n");
+        if (entry->type == LIMINE_MEMMAP_USABLE && entry->length >= bitmap_size_bytes)
+        {
+            // put bitmap at the start of fitting entry,
+            // need to apply hhdm offset here, because base is physical
+            // memory but page_bitmap in kernel needs to be virtual
+            page_bitmap = (uint8_t*)(entry->base + hhdm->offset);
+            printf("pages for bitmap: %lu", bitmap_size_bytes / PAGE_SIZE);
+            kmemset(page_bitmap, 0xFF, bitmap_size_bytes);
+
+            // wipe bitmap space from memmap entry (page aligned size)
+            entry->length -= bitmap_size_bytes;
+            entry->base += bitmap_size_bytes;
+
+            success = 1;
+            break;
+        }
+    }
+    if (!success) {
+        // [DBG]
+        printf("PMM::NO_SPACE_FOR_PAGE_BITMAP Couldn't fit the page map anwhere\n");
+        asm volatile ("cli\n hlt");
+    }
+}
+
+static void fillBitmap(void)
+{
+    for (size_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = memmap->entries[i];
+
+        // [DBG]
+        //printf("Entry %-2lu: Base = 0x%016lx, Length = %lu bytes, Type = %lu\n\r",
+        //    i, entry->base, entry->length, entry->type);
+
+        if (entry->type == LIMINE_MEMMAP_USABLE) {
+
+            // free usable entries in the page map
+            for (size_t j = 0; j < entry->length / PAGE_SIZE; j++) {
+                BITMAP_UNSET_BIT(page_bitmap, (entry->base / PAGE_SIZE) + j);
+            }
+        }
+    }
 }
 
 void initPMM(void)
 {
-    if (memmap_request.response == NULL
-     || memmap_request.response->entry_count <= 1) {
-        printf("memmap request failed, halting...\n");
-        asm volatile("cli\n hlt");
-    }
-    if (hhdm_request.response == NULL) {
-        printf("hhdm request failed, halting...\n");
-        asm volatile("cli\n hlt");
+    memmap = memmap_request.response;
+    hhdm = hhdm_request.response;
+
+    if (!memmap || !hhdm || memmap->entry_count <= 1) {
+        printf("PMM::LIMINE_RESPONSE_FAILED memmap or HHDM request failed\n");
+        asm volatile ("cli\n hlt");
     }
 
-    // count total available free bytes
-    for (uint64_t i = 0; i < memmap_request.response->entry_count; i++) {
-        struct limine_memmap_entry *entry = memmap_request.response->entries[i];
-        printf("Entry %-2lu: Base = 0x%016lx, Length = %lu bytes, Type = %lu\n\r",
-            i, entry->base, entry->length, entry->type);
+    // calc page_bitmap size
+    for (size_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = memmap->entries[i];
+
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            total_free_bytes += entry->length;
-
-            if (entry->base < lowest_address)
-                lowest_address = entry->base;
-            if (entry->base > highest_address)
-                highest_address = entry->base + entry->length;
-
-            // should "round down"
-            total_available_pages += entry->length / PAGE_SIZE;
+            pages_usable += DIV_ROUNDUP(entry->length, PAGE_SIZE);
+            highest_address = MAX(highest_address, entry->base + entry->length);
+        } else {
+            pages_reserved += DIV_ROUNDUP(entry->length, PAGE_SIZE);
         }
     }
 
-    bitmap_size_bytes = total_available_pages;
+    pages_total = highest_address / PAGE_SIZE;
+    bitmap_size_bytes = ALIGN_UP(pages_total / 8, PAGE_SIZE);
 
-    printf("Allocating bitmap...\n");
-    allocateBitmap();
+    initBitmap();
+    fillBitmap();
 
-    printf("Total memory: %lumb usable\n\r", total_free_bytes / (1024 * 1024));
+    printf("Total memory: %luMiB, of which %luMiB usable\n",
+        (pages_total * PAGE_SIZE) / (1024 * 1024),
+        (pages_usable * PAGE_SIZE) / (1024 * 1024));
 }
 
-void *claimContinousPages(uint64_t count)
+// [TODO] optimize this function, for now loop from the beginning
+// OFF BY ONE ERROR [FIXME] (fixed)
+void *pmmClaimContiguousPages(size_t count)
 {
-    // i tracks the page
-    for (size_t i = 0; i < total_available_pages; i++) {
-        // if we are to far back to find any more free memory
-        if (i + count > total_available_pages) {
-            return NULL;
-        }
-
-        for (size_t j = 0; j < count; j++) {
-            if (page_bitmap[i + j] == 1) {
-                i += j;
-                goto inc;
+    size_t idx = 0, pages_found = 0;
+    // while not at last page (last idx = total - 1)
+    while (idx < pages_total) {
+        // if free page at idx
+        if (BITMAP_READ_BIT(page_bitmap, idx) == 0) {
+            pages_found++;
+            // found enough contiguous pages
+            if (pages_found == count) {
+                // alloc them
+                for (size_t j = idx - count; j < idx; j++) {
+                    BITMAP_SET_BIT(page_bitmap, j + 1ul);
+                }
+                pages_in_use += count;
+                // [DBG]
+                printf("Allocated %lu page(s) at (pa) 0x%016lX\n", count, (unsigned long)((idx + 1ul) - count) * PAGE_SIZE);
+                return (void *)(((idx + 1ul) - count) * PAGE_SIZE);
             }
+        // the region we are at doesn't contain enough pages
+        } else {
+            pages_found = 0;
         }
-        return (void*)(lowest_address + hhdm_request.response->offset + i * PAGE_SIZE);
-
-inc:
+        idx++;
     }
+
+    // [DBG]
+    printf("PMM::NO_PAGES_FOUND Free pages: %lu; Requested pages: %lu\n", pages_usable - pages_in_use, count);
     return NULL;
+}
+
+// ptr needs to be the original pointer memory was allocated from
+// This function does NOT set the pointer to 0 !!!
+void pmmFreeContiguousPages(void *ptr, size_t count)
+{
+    size_t starting_page = (uint64_t)ptr / PAGE_SIZE;
+    for (size_t i = 0; i < count; i++) {
+        BITMAP_UNSET_BIT(page_bitmap, starting_page + i);
+    }
+    pages_in_use -= count;
+    printf("Freed %lu pages at (pa) 0x%016lX\n", count, (uint64_t)ptr);
 }

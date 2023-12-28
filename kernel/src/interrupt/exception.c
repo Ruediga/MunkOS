@@ -3,28 +3,22 @@
 #include "std/kprintf.h"
 void default_exception_handler(INT_REG_INFO *regs)
 {
-    printf("\nInterrupt 0x%lX called", regs->vector);
-    printf("\nWith error code: %li", regs->error_code);
+    printf("\nInterrupt 0x%lX called with error code: %lu\n",
+        regs->vector, regs->error_code);
 
-    printf("\nrdi: 0x%016lX", regs->rdi);
-    printf("\nrsi: 0x%016lX", regs->rsi);
-    printf("\nrbp: 0x%016lX", regs->rbp);
-    printf("\nrsp: 0x%016lX", regs->rsp);
-    printf("\nrbx: 0x%016lX", regs->rbx);
-    printf("\nrdx: 0x%016lX", regs->rdx);
-    printf("\nrcx: 0x%016lX", regs->rcx);
-    printf("\nrax: 0x%016lX", regs->rax);
-    printf("\nr8:  0x%016lX", regs->r8);
-    printf("\nr9:  0x%016lX", regs->r9);
-    printf("\nr10: 0x%016lX", regs->r10);
-    printf("\nr11: 0x%016lX", regs->r11);
-    printf("\nr12: 0x%016lX", regs->r12);
-    printf("\nr13: 0x%016lX", regs->r13);
-    printf("\nr14: 0x%016lX", regs->r14);
-    printf("\nr15: 0x%016lX", regs->r15);
+    printf("rdi: 0x%016lX   rsi: 0x%016lX   rbp: 0x%016lX   rsp: 0x%016lX\
+        \nrbx: 0x%016lX   rdx: 0x%016lX   rcx: 0x%016lX   rax: 0x%016lX\n",
+        regs->rdi, regs->rsi, regs->rbp, regs->rsp,
+        regs->rbx, regs->rdx, regs->rcx, regs->rax);
+    printf("r8:  0x%016lX   r9:  0x%016lX   r10: 0x%016lX   r11: 0x%016lX\
+        \nr12: 0x%016lX   r13: 0x%016lX   r14: 0x%016lX   r15: 0x%016lX\n",
+        regs->r8, regs->r9, regs->r10, regs->r11,
+        regs->r12, regs->r13, regs->r14, regs->r15);
 
-    printf("\nEFLAGS: 0x%016lX", regs->eflags);
+    printf("cr0: 0x%016lX   cr2: 0x%016lX   cr3: 0x%016lX   cr4: 0x%016lX\n",
+        regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
-    if (regs->vector != 0x69)
-        asm volatile ("cli\n hlt");
+    printf("EFLAGS: 0x%lX\n\n", regs->eflags);
+
+    asm volatile("cli\n hlt\n");
 }

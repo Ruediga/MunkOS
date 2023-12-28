@@ -4,6 +4,10 @@
 
 typedef struct __attribute__((packed)) {
     // stack growns downwards hence flipped around
+    uint64_t cr4;
+    uint64_t cr3;
+    uint64_t cr2;
+    uint64_t cr0;
     uint64_t eflags;
     uint64_t r15;
     uint64_t r14;

@@ -4,6 +4,18 @@ Operating System very early on in dev for learning purposes with simplicity in m
 
 Currently, MunkOS only supports the x86_64 architecture, but support for other architectures is very likely to be added at some point. The OS boots up with the Limine-Bootloader, which can be found at https://www.github.com/limine-bootloader/limine.
 
+Stuff in the code marked with:
+
+> // [DBG]
+
+can be removable debug_prints, structures or variables.
+
+Things to be patched or rewritten in the future are marked:
+
+> // [TODO]
+
+
+
 # Building
 
 It is recommended to use a Linux distro (WSL should work too) to build from source yourself. Building requires the following packages which you can install with your distros package manager (apt, pacman, ...):
@@ -28,7 +40,9 @@ make run
 - [printf](https://github.com/mpaland/printf) (Agenda: remove dependency)
 - [flanterm](https://github.com/mintsuki/flanterm)
 
-# Goals
+# Features
+
+Currently, work on the kernel is the biggest focus.
 
 - [x] PMM
 - [ ] VMM
@@ -38,7 +52,7 @@ make run
 - [ ] Threads
 - [ ] Scheduler
 
-### Long Term
+### Long Term Goals
 
 I MunkOS to be a completely dependency free OS, so writing a standard library for C, system library and replacing pretty much every third party software with my own is something I intend to achieve. Porting Linux software, implementing a GUI and writing an interpreted language for making user space applications are some very far, but reachable goals I have had in mind since the beginning.
 
