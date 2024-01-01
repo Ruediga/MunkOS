@@ -1,8 +1,13 @@
 #include "interrupt/exception.h"
 
+#include "flanterm/flanterm.h"
+extern struct flanterm_context *ft_ctx;
+
 #include "std/kprintf.h"
 void default_exception_handler(INT_REG_INFO *regs)
 {
+    // red bg
+    flanterm_write(ft_ctx, "\033[41m", 6);
     printf("\nInterrupt 0x%lX called with error code: %lu\n",
         regs->vector, regs->error_code);
 

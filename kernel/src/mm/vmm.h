@@ -52,4 +52,4 @@ typedef struct {
 void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
 void removePageMapping(page_map_ctx *pmc, uintptr_t va);
 
-void setCtxToPM(page_map_ctx *pmc);
+void setCtxToPM(const page_map_ctx *pmc);

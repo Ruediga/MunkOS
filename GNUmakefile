@@ -3,7 +3,7 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := template
 
-override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off -D log.txt
+override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off -D log.txt
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =

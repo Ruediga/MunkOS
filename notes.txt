@@ -1,0 +1,4 @@
+flash usb:
+
+lsblk
+sudo dd if=/path/to/hdd-image.img of=/dev/sdX bs=4M status=progress

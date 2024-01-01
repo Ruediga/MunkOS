@@ -20,13 +20,14 @@ struct limine_memmap_response *memmap = 0x0;
 struct limine_hhdm_response *hhdm = 0x0;
 
 // keep track of free and used pages: 0 = unused
-uint8_t *page_bitmap = (uint8_t*)0x0;
+uint8_t *page_bitmap = (uint8_t *)0x0;
 uint64_t pages_usable = 0x0;
 uint64_t pages_reserved = 0x0;
 uint64_t pages_total = 0x0;
 uint64_t pages_in_use = 0x0;
 
-uint64_t highest_address = 0x0;
+uint64_t highest_address_memmap = 0x0;
+uint64_t highest_address_usable = 0x0;
 uint64_t bitmap_size_bytes = 0x0;
 
 // memmap and hhdm
@@ -52,7 +53,6 @@ static void initBitmap(void)
             // need to apply hhdm offset here, because base is physical
             // memory but page_bitmap in kernel needs to be virtual
             page_bitmap = (uint8_t*)(entry->base + hhdm->offset);
-            printf("pages for bitmap: %lu", bitmap_size_bytes / PAGE_SIZE);
             kmemset(page_bitmap, 0xFF, bitmap_size_bytes);
 
             // wipe bitmap space from memmap entry (page aligned size)
@@ -65,7 +65,7 @@ static void initBitmap(void)
     }
     if (!success) {
         // [DBG]
-        printf("PMM::NO_SPACE_FOR_PAGE_BITMAP Couldn't fit the page map anwhere\n");
+        printf("PMM::NO_SPACE_FOR_PAGE_BITMAP Couldn't fit the page map anywhere\n");
         asm volatile ("cli\n hlt");
     }
 }
@@ -95,7 +95,7 @@ void initPMM(void)
     hhdm = hhdm_request.response;
 
     if (!memmap || !hhdm || memmap->entry_count <= 1) {
-        printf("PMM::LIMINE_RESPONSE_FAILED memmap or HHDM request failed\n");
+        printf("PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
         asm volatile ("cli\n hlt");
     }
 
@@ -103,15 +103,17 @@ void initPMM(void)
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *entry = memmap->entries[i];
 
+        highest_address_memmap = MAX(highest_address_memmap, entry->base + entry->length);
+
         if (entry->type == LIMINE_MEMMAP_USABLE) {
             pages_usable += DIV_ROUNDUP(entry->length, PAGE_SIZE);
-            highest_address = MAX(highest_address, entry->base + entry->length);
+            highest_address_usable = MAX(highest_address_usable, entry->base + entry->length);
         } else {
             pages_reserved += DIV_ROUNDUP(entry->length, PAGE_SIZE);
         }
     }
 
-    pages_total = highest_address / PAGE_SIZE;
+    pages_total = highest_address_usable / PAGE_SIZE;
     bitmap_size_bytes = ALIGN_UP(pages_total / 8, PAGE_SIZE);
 
     initBitmap();
@@ -120,6 +122,13 @@ void initPMM(void)
     printf("Total memory: %luMiB, of which %luMiB usable\n",
         (pages_total * PAGE_SIZE) / (1024 * 1024),
         (pages_usable * PAGE_SIZE) / (1024 * 1024));
+
+    // for no real reason other than why not don't allow running the OS with
+    // less than 1 GiB of usable memory
+    if ((pages_usable * PAGE_SIZE) / (1024 * 1024) < 1000) {
+        printf("Stop being cheap and run this with >= 1 GiB of usable RAM\n\r");
+        asm volatile ("cli\n hlt");
+    }
 }
 
 // [TODO] optimize this function, for now loop from the beginning
@@ -140,7 +149,7 @@ void *pmmClaimContiguousPages(size_t count)
                 }
                 pages_in_use += count;
                 // [DBG]
-                printf("Allocated %lu page(s) at (pa) 0x%016lX\n", count, (unsigned long)((idx + 1ul) - count) * PAGE_SIZE);
+                //printf("Allocated %lu page(s) at (pa) 0x%016lX\n", count, (unsigned long)((idx + 1ul) - count) * PAGE_SIZE);
                 return (void *)(((idx + 1ul) - count) * PAGE_SIZE);
             }
         // the region we are at doesn't contain enough pages

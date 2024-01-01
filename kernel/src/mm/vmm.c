@@ -5,10 +5,15 @@
 #include "vmm.h"
 #include <stdbool.h>
 #include "std/typedefs.h"
+#include "std/memory.h"
 
 page_map_ctx kernel_pmc = { 0x0 };
 
+extern uint8_t *page_bitmap;
+extern uint64_t bitmap_size_bytes;
+
 extern struct limine_hhdm_response *hhdm;
+extern struct limine_memmap_response *memmap;
 struct limine_kernel_address_request kernel_address_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
@@ -27,24 +32,21 @@ void initVMM(void)
 static inline void tlbFlush()
 {
     asm volatile (
-        "move"
-    )
+        "movq %%cr3, %%rax\n\
+	    movq %%rax, %%cr3\n"
+        : : : "rax"
+   );
 }
 
 static uint64_t *getBelowPML(uint64_t *pml_pointer, uint64_t index, bool force)
 {
-    //Bprintf("here... index = %lu\n", index);
-    if (pml_pointer[index] & PTE_BIT_PRESENT) {
-        /*
-         * With 4KB pages, PTE[12] - PTE[51] contain the PA of the next lower level
-         * See Intel SDM Table 4-20 (vol 3, 4.5.5)
-        */
-        //Bprintf("Returning1... lower = 0x%016lX\n", (EXTRACT_BITS(pml_pointer[index], 12, 51)));
-        return (uint64_t *)(EXTRACT_BITS(pml_pointer[index], 12, 51) + hhdm->offset);
+    if ((pml_pointer[index] & PTE_BIT_PRESENT) != 0) {
+        // With 4KB pages, PTE[12] - PTE[51] contain the PA of the next lower level
+        // See Intel SDM Table 4-20 (vol 3, 4.5.5)
+        return (uint64_t *)((pml_pointer[index] & 0x000ffffffffff000) + hhdm->offset);
     }
-    //Bprintf("Returning2...\n");
     // if pml_pointer[index] contains no entry
-    
+
     if (!force) {
         return NULL;
     }
@@ -55,25 +57,27 @@ static uint64_t *getBelowPML(uint64_t *pml_pointer, uint64_t index, bool force)
         printf("Allocating pages for vmm tables failed\n\r");
         asm ("cli\n hlt\n");
     }
+    // zero out contents of newly allocated page
+    memset((void *)((uint64_t)below_pml + hhdm->offset), 0, PAGE_SIZE);
 
     // the most strict permissions are used, so
     // before the lowest level allow "everything"
-    // [FIXME] shift 12 to the left because (intel sdm -> above)
-    pml_pointer[index] = (uint64_t)below_pml << 12 | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_ACCESS_ALL;
+    pml_pointer[index] = (uint64_t)below_pml | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_ACCESS_ALL;
     return (uint64_t *)((uint64_t)below_pml + hhdm->offset);
 }
 
 // return NULL if requested PT doesn't exist and shouldn't be allocated
 static uint64_t *pml4ToPT(uint64_t *pml4, uint64_t va, bool force)
 {
-    size_t pml4_index = EXTRACT_BITS(va, 39ul, 47ul),
-        pdpt_index = EXTRACT_BITS(va, 30ul, 38ul),
-        pd_index = EXTRACT_BITS(va, 21ul, 29ul);
+    size_t pml4_index = (va & (0x1fful << 39)) >> 39,
+        pdpt_index = (va & (0x1fful << 30)) >> 30,
+        pd_index = (va & (0x1fful << 21)) >> 21;
 
     uint64_t *pdpt = NULL,
         *pd = NULL,
         *pt = NULL;
 
+    //Bprintf("pml4_index: %lu\n", pml4_index);
     pdpt = getBelowPML(pml4, pml4_index, force);
     if (!pdpt) {
         return NULL;
@@ -83,23 +87,16 @@ static uint64_t *pml4ToPT(uint64_t *pml4, uint64_t va, bool force)
     if (!pd) {
         return NULL;
     }
-    //Bprintf("pd address: 0x%lX\n", &pd[0]);
     pt = getBelowPML(pd, pd_index, force);
     if (!pt) {
         return NULL;
     }
 
-    return (uint64_t *)pt;
+    return pt;
 }
 
 static void initKPM(void)
 {
-    // limine kernel address request
-    // struct limine_kernel_address_response {
-    // uint64_t revision;
-    // uint64_t physical_base;
-    // uint64_t virtual_base;
-    // };
     if (!kernel_address_request.response) {
         // [DBG]
         printf("limine kernel address request not answered\n\r");
@@ -114,18 +111,13 @@ static void initKPM(void)
         asm ("cli\n hlt\n");
     }
     kernel_pmc.pml4_address += hhdm->offset;
+    // zero out contents of newly allocated page
+    memset((void *)kernel_pmc.pml4_address, 0, PAGE_SIZE);
 
     // [TODO] meanwhile take Lyre's approach of using linker symbols
     extern linker_symbol_ptr text_start_addr, text_end_addr,
         rodata_start_addr, rodata_end_addr,
         data_start_addr, data_end_addr;
-
-    printf("text_start_addr = 0x%016lX\n", text_start_addr);
-    printf("text_end_addr = 0x%016lX\n", text_end_addr);
-    printf("rodata_start_addr = 0x%016lX\n", rodata_start_addr);
-    printf("rodata_end_addr = 0x%016lX\n", rodata_end_addr);
-    printf("data_start_addr = 0x%016lX\n", data_start_addr);
-    printf("data_end_addr = 0x%016lX\n", data_end_addr);
 
     uintptr_t text_start = ALIGN_DOWN((uintptr_t)text_start_addr, PAGE_SIZE),
         rodata_start = ALIGN_DOWN((uintptr_t)rodata_start_addr, PAGE_SIZE),
@@ -138,13 +130,48 @@ static void initKPM(void)
         printf("Kernel Address request failed!\n");
         asm volatile("cli\n hlt\n");
     }
+
+    // limine
     struct limine_kernel_address_response *ka = kernel_address_request.response;
 
+    // map bitmap
+    for (size_t off = 0; off < ALIGN_UP(bitmap_size_bytes, PAGE_SIZE); off += PAGE_SIZE) {
+        mapPage(&kernel_pmc, (uintptr_t)page_bitmap + off, (uintptr_t)page_bitmap - hhdm->offset + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    }
+    
+    for (size_t i = 0; i < memmap->entry_count; i++) {
+        struct limine_memmap_entry *entry = memmap->entries[i];
+
+        //printf("Entry %-2lu: Base = 0x%016lx, Length = %lu bytes, Type = %lu\n\r",
+        //    i, entry->base, entry->length, entry->type);
+
+        // map usable entries as read and write for now [FIXME]
+        if (entry->type == LIMINE_MEMMAP_USABLE) {
+            for (size_t off = entry->base; off < entry->length; off += PAGE_SIZE) {
+                mapPage(&kernel_pmc, off + hhdm->offset, off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+            } 
+        }
+
+        // framebuffer
+        if (entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            for (size_t off = 0; off < ALIGN_UP(entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+                uintptr_t base_off_aligned = ALIGN_UP(entry->base + off, PAGE_SIZE);
+                mapPage(&kernel_pmc, base_off_aligned + hhdm->offset, base_off_aligned, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE);
+            } 
+        }
+
+        // bootloader reclaimable
+        if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            for (size_t off = 0; off < ALIGN_UP(entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+                mapPage(&kernel_pmc, entry->base + off + hhdm->offset, entry->base + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+            } 
+        }
+    }
+
+    // Lyre's approach of mapping the kernel
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
         uintptr_t phys = text_addr - ka->virtual_base + ka->physical_base;
-        //Bprintf("calling mapPage phys = 0x%lX virt = 0x%lX\n", phys, text_addr);
         mapPage(&kernel_pmc, text_addr, phys, PTE_BIT_PRESENT);
-        //Bprintf("done\n");
     }
 
     for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
@@ -156,14 +183,15 @@ static void initKPM(void)
         uintptr_t phys = data_addr - ka->virtual_base + ka->physical_base;
         mapPage(&kernel_pmc, data_addr, phys, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE);
     }
+
+    setCtxToPM(&kernel_pmc);
+    tlbFlush();
 }
 
-// maps a page size aligned VA to a page size aligned PA.
-// [TODO] tlb shootdown
+// maps a page size aligned VA to a page size aligned PA
 void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
 {
     size_t pt_index = EXTRACT_BITS(va, 12ul, 20ul);
-    //Bprintf("calling pml4ToPT\n");
     uint64_t *pt = pml4ToPT((uint64_t *)pmc->pml4_address, va, true);
     if (pt == NULL) {
         // [DBG]
@@ -171,14 +199,14 @@ void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
         asm ("cli\n hlt\n");
     }
     // map page
-    // [FIXME] << 12 ?
-    pt[pt_index] = pa << 12 | flags;
+    pt[pt_index] = pa | flags;
+
+    tlbFlush();
 }
 
-// [TODO] tlb shootdown
 void removePageMapping(page_map_ctx *pmc, uintptr_t va)
 {
-    size_t pt_index = EXTRACT_BITS(va, 12ul, 20ul);
+    size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4ToPT((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
         // [DBG]
@@ -187,12 +215,14 @@ void removePageMapping(page_map_ctx *pmc, uintptr_t va)
     }
     // unmap page
     pt[pt_index] = 0x0;
+
+    tlbFlush();
 }
 
-inline void setCtxToPM(page_map_ctx *pmc)
+inline void setCtxToPM(const page_map_ctx *pmc)
 {
     asm volatile (
         "movq %0, %%cr3\n"
-        : : "r" (pmc->pml4_address - hhdm->offset) : "memory"
+        : : "r" ((uint64_t *)(pmc->pml4_address - hhdm->offset)) : "memory"
     );
 }
