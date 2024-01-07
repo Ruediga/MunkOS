@@ -14,6 +14,10 @@
 #include "interrupt/idt.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
+#include "dynmem/kheap.h"
+#include "dynmem/liballoc.h"
+#include "acpi/acpi.h"
+#include "cpu/cpuid.h"
 
 // Set the base revision to 1, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -27,7 +31,8 @@ LIMINE_BASE_REVISION(1)
 
 struct limine_framebuffer_request framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
-    .revision = 0};
+    .revision = 0
+};
 
 // Halt and catch fire function.
 void hcf(void)
@@ -39,17 +44,24 @@ void hcf(void)
     }
 }
 
+void allocNewKernelStack(size_t new_stack_size_pages)
+{
+    for (size_t addr = 0xFFFFFFFFFFFFFFFF; addr > 0xFFFFFFFFFFFFFFFF - (new_stack_size_pages * PAGE_SIZE); addr -= PAGE_SIZE) {
+        void *new_page = pmmClaimContiguousPages(1);
+        mapPage(&kernel_pmc, addr, (uintptr_t)new_page, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    }
+
+    asm volatile (
+        "movq $0xFFFFFFFFFFFFFFFF, %%rsp\n"
+        : : : "memory"
+    );
+}
+
 // global flanterm context
 struct flanterm_context *ft_ctx;
 
-// linker puts the kernels highest address in here? [TODO]
-extern uint64_t endkernel;
-
 void kernel_entry(void)
 {
-    // set up new stack
-    // [TODO]
-
     // Ensure the bootloader actually understands our base revision (see spec).
     if (LIMINE_BASE_REVISION_SUPPORTED == false) {
         hcf();
@@ -69,36 +81,63 @@ void kernel_entry(void)
     ft_ctx = flanterm_fb_simple_init(
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
 
-    printf("Limine framebuffer width: %lu, heigth: %lu\n", framebuffer->width, framebuffer->height);
+    kprintf("Limine framebuffer width: %lu, heigth: %lu\n\r", framebuffer->width, framebuffer->height);
 
     // load a GDT
     initGDT();
-    printf("GDT set up\n");
+    kprintf("GDT set up\n\r");
    
     // initialize IDT
     initIDT();
-    printf("Interrupts initialized\n");
+    kprintf("Interrupts initialized\n\r");
 
     // pmm
     initPMM();
-    printf("PMM functions prepared\n");
+    kprintf("PMM functions prepared\n\r");
 
     // vmm
     initVMM();
-    printf("VMM and kernel pagemap initialized\n");
+    kprintf("VMM and kernel pagemap initialized\n\r");
 
-    extern struct limine_hhdm_response *hhdm;
-    uint64_t *arr = (uint64_t *)((uint64_t)pmmClaimContiguousPages(1) + hhdm->offset);
-    memset(arr, 0xFF, PAGE_SIZE);
+    // put new kernel stack at the top of virtual address space because why not
+    allocNewKernelStack(0xFFFF / PAGE_SIZE);
 
-    asm volatile (
+    // heap
+    initializeKernelHeap(0xFFFFFFF / PAGE_SIZE);
+    kprintf("Kernel heap initialized\n\r");
+
+    const size_t arr_size = 999;
+    uint64_t *ptr_array[arr_size];
+    for (size_t i = 0; i < arr_size; i++) {
+        ptr_array[i] = (uint64_t *)kmalloc(arr_size * sizeof(uint64_t));
+        if (!ptr_array[i]) {
+            kprintf("Allocation failed [dbg from kernel_main()]\n");
+            continue;
+        }
+        for (size_t j = 0; j < arr_size - 1; j++) {
+            ptr_array[i][j] = 88;
+        }
+    }
+    for (int i = arr_size; i >= 0; i--) {
+        kfree((void *)ptr_array[i]);
+    }
+
+    parseACPI();
+    kprintf("Parsed ACPI tables\n\r");
+
+    char vendor[13];
+    cpuid_getCpuVendor(vendor);
+    kprintf("CPU Vendor: %s\n", vendor);
+
+    kprintf("%p\n", vendor);
+
+    /*asm volatile (
         "movq $50, %rdx\n"
         "xor %rax, %rax\n"
         "div %rdx\n"
-    );
-    // loop
-    asm volatile("loop: jmp loop\n");
+    );*/
 
     // halt
-    hcf();
+    kprintf("Done...");
+    asm volatile("loop: jmp loop\n");
 }

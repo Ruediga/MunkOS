@@ -9,11 +9,6 @@
 
 page_map_ctx kernel_pmc = { 0x0 };
 
-extern uint8_t *page_bitmap;
-extern uint64_t bitmap_size_bytes;
-
-extern struct limine_hhdm_response *hhdm;
-extern struct limine_memmap_response *memmap;
 struct limine_kernel_address_request kernel_address_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
@@ -54,7 +49,7 @@ static uint64_t *getBelowPML(uint64_t *pml_pointer, uint64_t index, bool force)
     void *below_pml = pmmClaimContiguousPages(1);
     if (below_pml == NULL) {
         // [DBG]
-        printf("Allocating pages for vmm tables failed\n\r");
+        kprintf("Allocating pages for vmm tables failed\n\r");
         asm ("cli\n hlt\n");
     }
     // zero out contents of newly allocated page
@@ -99,7 +94,7 @@ static void initKPM(void)
 {
     if (!kernel_address_request.response) {
         // [DBG]
-        printf("limine kernel address request not answered\n\r");
+        kprintf("limine kernel address request not answered\n\r");
         asm ("cli\n hlt\n");
     }
 
@@ -107,7 +102,7 @@ static void initKPM(void)
     kernel_pmc.pml4_address = (uintptr_t)pmmClaimContiguousPages(1);
     if (!kernel_pmc.pml4_address) {
         // [DBG]
-        printf("vmm.c: kernel_pmc.pml4_address = pmmContiguousPages(1); returned NULL\n\r");
+        kprintf("vmm.c: kernel_pmc.pml4_address = pmmContiguousPages(1); returned NULL\n\r");
         asm ("cli\n hlt\n");
     }
     kernel_pmc.pml4_address += hhdm->offset;
@@ -127,7 +122,7 @@ static void initKPM(void)
         data_end = ALIGN_UP((uintptr_t)data_end_addr, PAGE_SIZE);
 
     if (!kernel_address_request.response) {
-        printf("Kernel Address request failed!\n");
+        kprintf("Kernel Address request failed!\n");
         asm volatile("cli\n hlt\n");
     }
 
@@ -138,33 +133,32 @@ static void initKPM(void)
     for (size_t off = 0; off < ALIGN_UP(bitmap_size_bytes, PAGE_SIZE); off += PAGE_SIZE) {
         mapPage(&kernel_pmc, (uintptr_t)page_bitmap + off, (uintptr_t)page_bitmap - hhdm->offset + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
-    
+
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *entry = memmap->entries[i];
 
-        //printf("Entry %-2lu: Base = 0x%016lx, Length = %lu bytes, Type = %lu\n\r",
-        //    i, entry->base, entry->length, entry->type);
+        // [DBG]
+        //printf("Entry %-2lu: Base = 0x%016lX, End = 0x%016lX, Length = %lu bytes, Type = %lu\n\r",
+        //    i, entry->base, entry->base + entry->length, entry->length, entry->type);
 
-        // map usable entries as read and write for now [FIXME]
+        // map usable entries as read and write for now
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            for (size_t off = entry->base; off < entry->length; off += PAGE_SIZE) {
+            for (size_t off = entry->base; off < entry->base + entry->length; off += PAGE_SIZE) {
                 mapPage(&kernel_pmc, off + hhdm->offset, off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
-            } 
+            }
         }
-
         // framebuffer
-        if (entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            for (size_t off = 0; off < ALIGN_UP(entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+        else if (entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            for (size_t off = 0; off < ALIGN_UP(entry->base + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
                 uintptr_t base_off_aligned = ALIGN_UP(entry->base + off, PAGE_SIZE);
                 mapPage(&kernel_pmc, base_off_aligned + hhdm->offset, base_off_aligned, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE);
-            } 
+            }
         }
-
         // bootloader reclaimable
-        if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            for (size_t off = 0; off < ALIGN_UP(entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+        else if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            for (size_t off = 0; off < ALIGN_UP(entry->base + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
                 mapPage(&kernel_pmc, entry->base + off + hhdm->offset, entry->base + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
-            } 
+            }
         }
     }
 
@@ -188,6 +182,7 @@ static void initKPM(void)
     tlbFlush();
 }
 
+// [TODO] free unused pages holding page tables
 // maps a page size aligned VA to a page size aligned PA
 void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
 {
@@ -195,7 +190,7 @@ void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
     uint64_t *pt = pml4ToPT((uint64_t *)pmc->pml4_address, va, true);
     if (pt == NULL) {
         // [DBG]
-        printf("Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
+        kprintf("Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
         asm ("cli\n hlt\n");
     }
     // map page
@@ -204,15 +199,20 @@ void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
     tlbFlush();
 }
 
+// remove a mapping AND DEALLOCATES PHYSICAL PAGE!!
 void removePageMapping(page_map_ctx *pmc, uintptr_t va)
 {
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4ToPT((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
         // [DBG]
-        printf("Page Mapping couldnt be removed (pt doesn't exist)\n\r");
+        kprintf("Page Mapping couldnt be removed (pt doesn't exist)\n\r");
         asm ("cli\n hlt\n");
     }
+
+    // free page
+    pmmFreeContiguousPages((void *)(pt[pt_index] & 0x000ffffffffff000), 1);
+
     // unmap page
     pt[pt_index] = 0x0;
 

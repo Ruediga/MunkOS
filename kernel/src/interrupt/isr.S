@@ -16,7 +16,7 @@ isr_handler_stub:
     pushq %r13
     pushq %r14
     pushq %r15
-    # also push control, segment and flag registers [TODO]
+    # also push control, segment and flag registers
     pushfq      # push 64 bit eflag
     movq %cr0, %rax
     pushq %rax

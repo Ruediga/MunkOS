@@ -11,6 +11,8 @@ typedef struct {
     uintptr_t pml4_address;
 } page_map_ctx;
 
+extern page_map_ctx kernel_pmc;
+
 // page directory entry macros
 #define PTE_BIT_PRESENT (1ul << 0ul)
 #define PTE_BIT_READ_WRITE (1ul << 1ul)

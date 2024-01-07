@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct __attribute__((packed)) {
     // stack growns downwards hence flipped around
@@ -30,4 +31,5 @@ typedef struct __attribute__((packed)) {
     uint64_t error_code;
 } INT_REG_INFO;
 
+void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code);
 void default_exception_handler(INT_REG_INFO *regs);

@@ -1,9 +1,10 @@
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
-override IMAGE_NAME := template
+override IMAGE_NAME := image
 
-override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off -D log.txt
+override BASE_QEMU_ARGS := -M q35 -m 2G
+override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off -D log.txt -enable-kvm -cpu host
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -31,27 +32,23 @@ $(eval $(call DEFAULT_VAR,HOST_LIBS,$(DEFAULT_HOST_LIBS)))
 all: $(IMAGE_NAME).iso
 
 .PHONY: all-hdd
-all-hdd: $(IMAGE_NAME).hdd
+all-hdd: $(IMAGE_NAME).img
 
-.PHONY: run
-run: $(IMAGE_NAME).iso
-	qemu-system-x86_64 -M q35 -m 2G -cdrom $(IMAGE_NAME).iso -boot d
+.PHONY: run-iso-bios
+run-iso-bios: $(IMAGE_NAME).iso
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -cdrom $(IMAGE_NAME).iso -boot d
 
-.PHONY: run-uefi
-run-uefi: ovmf $(IMAGE_NAME).iso
-	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd -cdrom $(IMAGE_NAME).iso -boot d
+.PHONY: run-iso-uefi
+run-iso-uefi: ovmf $(IMAGE_NAME).iso
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd -cdrom $(IMAGE_NAME).iso -boot d
 
-.PHONY: run-hdd
-run-hdd: $(IMAGE_NAME).hdd
-	qemu-system-x86_64 -M q35 -m 2G -hda $(IMAGE_NAME).hdd
+.PHONY: run-img-bios
+run-img-bios: $(IMAGE_NAME).img
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -hda $(IMAGE_NAME).img
 
-.PHONY: run-hdd-uefi
-run-hdd-uefi: ovmf $(IMAGE_NAME).hdd
-	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd $(EXTRA_QEMU_ARGS) -hda $(IMAGE_NAME).hdd
-
-.PHONY: run-hdd-uefi-gdb
-run-hdd-uefi-gdb: ovmf $(IMAGE_NAME).hdd
-	qemu-system-x86_64 -M q35 -m 2G -bios ovmf/OVMF.fd -s -S -hda $(IMAGE_NAME).hdd
+.PHONY: run-img-uefi
+run-img-uefi: ovmf $(IMAGE_NAME).img
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd -hda $(IMAGE_NAME).img
 
 ovmf:
 	mkdir -p ovmf
@@ -74,7 +71,7 @@ $(IMAGE_NAME).iso: limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root
 	cp -v kernel/bin/kernel \
-		limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
+		 bg.jpg limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
 	cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/
@@ -86,20 +83,20 @@ $(IMAGE_NAME).iso: limine kernel
 	./limine/limine bios-install $(IMAGE_NAME).iso
 	rm -rf iso_root
 
-$(IMAGE_NAME).hdd: limine kernel
-	rm -f $(IMAGE_NAME).hdd
-	dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE_NAME).hdd
-	sgdisk $(IMAGE_NAME).hdd -n 1:2048 -t 1:ef00
-	./limine/limine bios-install $(IMAGE_NAME).hdd
-	mformat -i $(IMAGE_NAME).hdd@@1M
-	mmd -i $(IMAGE_NAME).hdd@@1M ::/EFI ::/EFI/BOOT
-	mcopy -i $(IMAGE_NAME).hdd@@1M kernel/bin/kernel limine.cfg limine/limine-bios.sys ::/
-	mcopy -i $(IMAGE_NAME).hdd@@1M limine/BOOTX64.EFI ::/EFI/BOOT
-	mcopy -i $(IMAGE_NAME).hdd@@1M limine/BOOTIA32.EFI ::/EFI/BOOT
+$(IMAGE_NAME).img: limine kernel
+	rm -f $(IMAGE_NAME).img
+	dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE_NAME).img
+	sgdisk $(IMAGE_NAME).img -n 1:2048 -t 1:ef00
+	./limine/limine bios-install $(IMAGE_NAME).img
+	mformat -i $(IMAGE_NAME).img@@1M
+	mmd -i $(IMAGE_NAME).img@@1M ::/EFI ::/EFI/BOOT
+	mcopy -i $(IMAGE_NAME).img@@1M bg.jpg kernel/bin/kernel limine.cfg limine/limine-bios.sys ::/
+	mcopy -i $(IMAGE_NAME).img@@1M limine/BOOTX64.EFI ::/EFI/BOOT
+	mcopy -i $(IMAGE_NAME).img@@1M limine/BOOTIA32.EFI ::/EFI/BOOT
 
 .PHONY: clean
 clean:
-	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).hdd
+	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).img
 	$(MAKE) -C kernel clean
 
 .PHONY: distclean

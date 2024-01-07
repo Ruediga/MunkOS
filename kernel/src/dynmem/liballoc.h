@@ -1,54 +1,39 @@
+// LIBALLOC (v1.1) BY https://github.com/blanham/liballoc (FREE USE)
+
+// [FIXME]
+#include <stdint.h>
+#include <stddef.h>
+
 #ifndef _LIBALLOC_H
 #define _LIBALLOC_H
 
+/** \defgroup ALLOCHOOKS liballoc hooks 
+ *
+ * These are the OS specific functions which need to 
+ * be implemented on any platform that the library
+ * is expected to work on.
+ */
+
+/** @{ */
 
 
-// If we are told to not define our own size_t, then we
-// skip the define.
-#ifndef _ALLOC_SKIP_DEFINE
 
-#ifndef _HAVE_SIZE_T
-#define _HAVE_SIZE_T
-typedef	unsigned int	size_t;
-#endif
+// If we are told to not define our own size_t, then we skip the define.
+//#define _HAVE_UINTPTR_T
+//typedef	unsigned long	uintptr_t;
 
-
-#ifndef	NULL
-#define NULL		0
-#endif
-
-#endif
+//This lets you prefix malloc and friends
+#define PREFIX(func) k ## func
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-/** This is a boundary tag which is prepended to the
- * page or section of a page which we have allocated. It is
- * used to identify valid memory blocks that the
- * application is trying to free.
- */
-struct	boundary_tag
-{
-	unsigned int magic;			//< It's a kind of ...
-	unsigned int size; 			//< Requested size.
-	unsigned int real_size;		//< Actual size.
-	int index;					//< Location in the page table.
-
-	struct boundary_tag *split_left;	//< Linked-list info for broken pages.
-	struct boundary_tag *split_right;	//< The same.
-
-	struct boundary_tag *next;	//< Linked list info.
-	struct boundary_tag *prev;	//< Linked list info.
-};
-
-
-
 
 /** This function is supposed to lock the memory data structures. It
  * could be as simple as disabling interrupts or acquiring a spinlock.
- * It's up to you to decide.
+ * It's up to you to decide. 
  *
  * \return 0 if the lock was acquired successfully. Anything else is
  * failure.
@@ -70,7 +55,7 @@ extern int liballoc_unlock();
  * \return NULL if the pages were not allocated.
  * \return A pointer to the allocated memory.
  */
-extern void* liballoc_alloc(int);
+extern void* liballoc_alloc(size_t);
 
 /** This frees previously allocated memory. The void* parameter passed
  * to the function is the exact same value returned from a previous
@@ -80,18 +65,22 @@ extern void* liballoc_alloc(int);
  *
  * \return 0 if the memory was successfully freed.
  */
-extern int liballoc_free(void*,int);
+extern int liballoc_free(void*,size_t);
 
 
 
-void     *malloc(size_t);				//< The standard function.
-void     *realloc(void *, size_t);		//< The standard function.
-void     *calloc(size_t, size_t);		//< The standard function.
-void      free(void *);					//< The standard function.
+
+extern void    *PREFIX(malloc)(size_t);				///< The standard function.
+extern void    *PREFIX(realloc)(void *, size_t);		///< The standard function.
+extern void    *PREFIX(calloc)(size_t, size_t);		///< The standard function.
+extern void     PREFIX(free)(void *);					///< The standard function.
 
 
 #ifdef __cplusplus
 }
 #endif
+
+
+/** @} */
 
 #endif

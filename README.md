@@ -2,84 +2,52 @@
 
 Operating System very early on in dev for learning purposes with simplicity in mind.
 
-Currently, MunkOS only supports the x86_64 architecture, but support for other architectures is very likely to be added at some point. The OS boots up with the Limine-Bootloader, which can be found at https://www.github.com/limine-bootloader/limine.
+Currently, MunkOS only contains a kernel (with very minimal features), supports the x86_64 architecture, and boots up with the Limine Bootloader.
 
 Stuff in the code marked with:
 
 > // [DBG]
 
-can be removable debug_prints, structures or variables.
-
-Things to be patched or rewritten in the future are marked:
-
-> // [TODO]
+are removable debugprints, structures or variables.
 
 
 
 # Building
 
-It is recommended to use a Linux distro (WSL should work too) to build from source yourself. Building requires the following packages which you can install with your distros package manager (apt, pacman, ...):
+It is recommended to use a Linux distro (WSL should work too) to build from source yourself. Building requires the following packages which you can install with your distros package manager (pacman, apt, ...):
 
 [TODO] finish list, script for cross compiler toolchain
-> sudo pacman -S gcc build-essential make xorriso
+> sudo pacman -S gcc build-essential make xorriso gdisk mtools
 
-1) Download dependencies by running ./install-dep.sh
+1) 
 2) 
 ```sh
-# compile everything
-make build
-# build image
-make image
-# run img with qemu
-make run
 ```
 
-### Dependencies
+### Third party software
 
 - [Limine](https://www.github.com/limine-bootloader/limine)
-- [printf](https://github.com/mpaland/printf) (Agenda: remove dependency)
-- [flanterm](https://github.com/mintsuki/flanterm)
+- [flanterm](https://github.com/mintsuki/flanterm)#
+- [liballoc](https://github.com/blanham/liballoc)
 
 # Features
 
 Currently, work on the kernel is the biggest focus.
 
-- [x] PMM
-- [ ] VMM
-- [x] GDT
+### Architecture stuff and basic initialization
+
 - [x] Interrupts
+- [x] PMM
+- [x] VMM
+- [x] Kernel-Heap
+- [x] ACPI
+- [ ] I/O APIC
 - [ ] Timer
+- [ ] PS2 driver
 - [ ] Threads
+- [ ] SMP
 - [ ] Scheduler
 
 ### Long Term Goals
 
-I MunkOS to be a completely dependency free OS, so writing a standard library for C, system library and replacing pretty much every third party software with my own is something I intend to achieve. Porting Linux software, implementing a GUI and writing an interpreted language for making user space applications are some very far, but reachable goals I have had in mind since the beginning.
-
-
-
-<!--
-If you want to know what this down below is, you found the Limine barebones readme
-
-## How to use this?
-
-### Dependencies
-
-Any `make` command depends on GNU make (`gmake`) and is expected to be run using it. This usually means using `make` on most GNU/Linux distros, or `gmake` on other non-GNU systems.
-
-All `make all*` targets depend on a GNU-compatible C toolchain capable of generating x86-64 ELF objects. Usually `gcc/binutils` or `clang/llvm/lld` provided by any x86-64 UNIX like (including Linux) distribution will suffice.
-
-Additionally, building an ISO with `make all` requires `xorriso`, and building a HDD/USB image with `make all-hdd` requires `sgdisk` (usually from `gdisk` or `gptfdisk` packages) and `mtools`.
-
-### Makefile targets
-
-Running `make all` will compile the kernel (from the `kernel/` directory) and then generate a bootable ISO image.
-
-Running `make all-hdd` will compile the kernel and then generate a raw image suitable to be flashed onto a USB stick or hard drive/SSD.
-
-Running `make run` will build the kernel and a bootable ISO (equivalent to make all) and then run it using `qemu` (if installed).
-
-Running `make run-hdd` will build the kernel and a raw HDD image (equivalent to make all-hdd) and then run it using `qemu` (if installed).
-
-The `run-uefi` and `run-hdd-uefi` targets are equivalent to their non `-uefi` counterparts except that they boot `qemu` using a UEFI-compatible firmware.
--->
+I want MunkOS to be a primarily dependency free OS, so replacing third party software I use for convinience during development with my own is something I intend to do at some point™.
