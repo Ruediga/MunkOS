@@ -27,7 +27,7 @@ It is recommended to use a Linux distro (WSL should work too) to build from sour
 ### Third party software
 
 - [Limine](https://www.github.com/limine-bootloader/limine)
-- [flanterm](https://github.com/mintsuki/flanterm)#
+- [flanterm](https://github.com/mintsuki/flanterm)
 - [liballoc](https://github.com/blanham/liballoc)
 
 # Features

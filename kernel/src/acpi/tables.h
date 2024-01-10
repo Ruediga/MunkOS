@@ -54,21 +54,13 @@ struct rsdt {
   uint8_t ptr[];
 };
 
-// 5.2.12
-struct madt {
-    struct sdt_header header;
-    uint32_t lapic_address_phys;
-    uint32_t flags;
-    uint8_t entries[];
-};
-
 struct gas {
     uint8_t address_space;
     uint8_t bit_width;
     uint8_t bit_offset;
     uint8_t access_size;
     uint64_t address;
-};
+} __attribute__((packed));
 
 struct fadt {
     struct sdt_header header;
@@ -76,7 +68,7 @@ struct fadt {
     uint32_t dsdt;
 
     // field used in ACPI 1.0; no longer in use, for compatibility only
-    uint8_t  reserved_0;
+    uint8_t reserved_0;
 
     uint8_t preferred_power_management_profile;
     uint16_t sci_interrupt;
@@ -111,7 +103,7 @@ struct fadt {
     uint8_t month_alarm;
     uint8_t century;
 
-    // reserved in ACPI 1.0; used since ACPI 2.0+
+    // reserved in ACPI 1.0, used since ACPI 2.0
     uint16_t boot_arch_flags;
 
     uint8_t reserved_1;
@@ -122,7 +114,7 @@ struct fadt {
     uint8_t reset_value;
     uint8_t reserved_2[3];
 
-    // 64bit pointers - Available on ACPI 2.0+
+    // 64 bit pointers since ACPI 2.0
     uint64_t x_firmware_control;
     uint64_t x_dsdt;
 
@@ -135,3 +127,33 @@ struct fadt {
     struct gas x_gpe0_block;
     struct gas x_gpe1_block;
 };
+
+// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#multiple-apic-flags
+// first byte (entries): Interrupt Controller Structure Type (ICST),
+// second byte (entries): length
+struct madt {
+    struct sdt_header header;
+    uint32_t lapic_address_phys;
+    uint32_t flags;
+    uint8_t entries[];
+};
+
+struct madt_header {
+    uint8_t lcst_id;
+    uint8_t length;
+} __attribute__((packed));
+
+struct lapic {
+    struct madt_header header;
+    uint8_t acpi_processor_uid;
+    uint8_t apic_id;
+    uint32_t flags;
+} __attribute__((packed));
+
+struct ioapic {
+    struct madt_header header;
+    uint8_t io_apic_id;
+    uint8_t reserved;
+    uint32_t io_apic_address; // physical
+    uint32_t global_system_interrupt_base;
+} __attribute__((packed));

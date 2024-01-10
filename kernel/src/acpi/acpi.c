@@ -1,4 +1,3 @@
-#include "acpi/tables.h"
 #include "limine.h"
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,6 +7,7 @@
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "acpi.h"
+#include "dynmem/vector.h"
 
 bool xsdt_present;
 
@@ -23,6 +23,13 @@ struct limine_rsdp_request rsdp_request = {
     .id = LIMINE_RSDP_REQUEST,
     .revision = 0
 };
+
+static vector vec_ioapic;
+static vector vec_lapic;
+
+// these need to hold addresses of vector->data!
+struct ioapic *ioapics;
+struct lapic *lapics;
 
 static bool validate_table(struct sdt_header *table_header)
 {
@@ -69,14 +76,19 @@ void parseACPI(void)
     }
 
     if (!(fadt_ptr = sdtFind("FACD")) || !validate_table(&fadt_ptr->header)) {
-        kprintf("FADT not valid\n");
+        kprintf("FADT not found\n");
         asm volatile("cli\n hlt");
     }
     if (!(madt_ptr = sdtFind("ACPI")) || !validate_table(&madt_ptr->header)) {
-        kprintf("MADT not valid\n");
+        kprintf("MADT not found\n");
         asm volatile("cli\n hlt");
     }
 
+    vector_init(&vec_lapic);
+    vector_init(&vec_ioapic);
+    parseMADT(madt_ptr);
+    lapics = (struct lapic *)vec_lapic.data;
+    ioapics = (struct ioapic *)vec_ioapic.data;
 
 }
 
@@ -86,9 +98,9 @@ void *sdtFind(const char signature[static 4])
     size_t entry_count = (rsdt_ptr->header.length - sizeof(struct sdt_header)) / (xsdt_present ? 8 : 4);
 
     for (size_t i = 0; i < entry_count; i++) {
-        struct sdt_header *head = NULL;
-        head = (struct sdt_header *)(xsdt_present ? (((uint64_t *)(rsdt_ptr->ptr))[i] + hhdm->offset)
-            : ((((uint32_t *)(rsdt_ptr->ptr))[i]) + hhdm->offset));
+        struct sdt_header *head = (xsdt_present ?
+            (struct sdt_header *)(((uint64_t *)rsdt_ptr->ptr)[i] + hhdm->offset)
+            : (struct sdt_header *)(((uint32_t *)rsdt_ptr->ptr)[i] + hhdm->offset));
 
         if (memcmp(head->signature, signature, 4)) {
             return head;
@@ -96,4 +108,22 @@ void *sdtFind(const char signature[static 4])
     }
 
     return NULL;
+}
+
+void parseMADT(struct madt *_madt)
+{
+    for (uintptr_t off = sizeof(struct madt); off < _madt->header.length; ) {
+        struct madt_header *madt_hdr = (struct madt_header *)(_madt->entries + off);
+
+        if (madt_hdr->lcst_id == MADT_ENTRY_PROCESSOR_LAPIC) {
+            // lapic
+            vector_append(&vec_lapic, madt_hdr, madt_hdr->length);
+        }
+        else if (madt_hdr->lcst_id == MADT_ENTRY_IO_APIC) {
+            // ioapic
+            vector_append(&vec_ioapic, madt_hdr, madt_hdr->length);
+        }
+
+        off += (madt_hdr->length ? madt_hdr->length : 2);
+    }
 }

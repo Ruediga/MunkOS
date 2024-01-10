@@ -3,7 +3,7 @@ override MAKEFLAGS += -rR
 
 # This is the name that our final kernel executable will have.
 # Change as needed.
-override KERNEL := kernel
+override KERNEL := kernel.elf_x86_64
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -44,6 +44,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 # Internal C flags that should not be changed by the user.
 override CFLAGS += \
     -Wall \
+    -Werror \
     -Wextra \
     -std=gnu11 \
     -ffreestanding \

@@ -29,6 +29,8 @@
 
 #include "std/kprintf.h"
 
+const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
+
 // defines for output formatting
 #define KPRINTF_FLAGS_JUSTIFY_LEFT (1u << 0u)
 #define KPRINTF_FLAGS_PERCEDE_SIGN (1u << 1u)

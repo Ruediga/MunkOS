@@ -3,7 +3,7 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 2G
+override BASE_QEMU_ARGS := -M q35 -m 2G --no-reboot -no-shutdown
 override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off -D log.txt -enable-kvm -cpu host
 
 # Convenience macro to reliably declare user overridable variables.
@@ -70,7 +70,7 @@ kernel:
 $(IMAGE_NAME).iso: limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root
-	cp -v kernel/bin/kernel \
+	cp -v kernel/bin/kernel.elf_x86_64 \
 		 bg.jpg limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
@@ -90,7 +90,7 @@ $(IMAGE_NAME).img: limine kernel
 	./limine/limine bios-install $(IMAGE_NAME).img
 	mformat -i $(IMAGE_NAME).img@@1M
 	mmd -i $(IMAGE_NAME).img@@1M ::/EFI ::/EFI/BOOT
-	mcopy -i $(IMAGE_NAME).img@@1M bg.jpg kernel/bin/kernel limine.cfg limine/limine-bios.sys ::/
+	mcopy -i $(IMAGE_NAME).img@@1M bg.jpg kernel/bin/kernel.elf_x86_64 limine.cfg limine/limine-bios.sys ::/
 	mcopy -i $(IMAGE_NAME).img@@1M limine/BOOTX64.EFI ::/EFI/BOOT
 	mcopy -i $(IMAGE_NAME).img@@1M limine/BOOTIA32.EFI ::/EFI/BOOT
 

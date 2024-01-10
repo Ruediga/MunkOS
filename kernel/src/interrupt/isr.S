@@ -1,4 +1,5 @@
 .section .text
+
 isr_handler_stub:
     pushq %rdi
     pushq %rsi

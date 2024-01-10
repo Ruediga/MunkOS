@@ -96,17 +96,17 @@ void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
     kprintf(msg);
     print_error_code ? kprintf("[ec 0x%lX]:\n\r", regs->error_code) : kprintf(":\n\r");
 
-    kprintf("rdi: 0x%016lX   rsi: 0x%016lX   rbp: 0x%016lX   rsp: 0x%016lX\
-\nrbx: 0x%016lX   rdx: 0x%016lX   rcx: 0x%016lX   rax: 0x%016lX\n",
+    kprintf("rdi: 0x%p   rsi: 0x%p   rbp: 0x%p   rsp: 0x%p\
+\nrbx: 0x%p   rdx: 0x%p   rcx: 0x%p   rax: 0x%p\n",
         regs->rdi, regs->rsi, regs->rbp, regs->rsp,
         regs->rbx, regs->rdx, regs->rcx, regs->rax);
 
-    kprintf("r8:  0x%016lX   r9:  0x%016lX   r10: 0x%016lX   r11: 0x%016lX\
-\nr12: 0x%016lX   r13: 0x%016lX   r14: 0x%016lX   r15: 0x%016lX\n",
+    kprintf("r8:  0x%p   r9:  0x%p   r10: 0x%p   r11: 0x%p\
+\nr12: 0x%p   r13: 0x%p   r14: 0x%p   r15: 0x%p\n",
         regs->r8, regs->r9, regs->r10, regs->r11,
         regs->r12, regs->r13, regs->r14, regs->r15);
 
-    kprintf("cr0: 0x%016lX   cr2: 0x%016lX   cr3: 0x%016lX   cr4: 0x%016lX\n",
+    kprintf("cr0: 0x%p   cr2: 0x%p   cr3: 0x%p   cr4: 0x%p\n",
         regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
     kprintf("EFLAGS: 0x%lX\n\n", regs->eflags);
