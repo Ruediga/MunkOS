@@ -13,7 +13,7 @@ uint8_t *kernel_heap_bitmap = 0x0;
 void initializeKernelHeap(size_t max_heap_size_pages)
 {
     // place the heap right after the direct map (if full) in (virtual) memory
-    kernel_heap_base_address = ALIGN_UP(highest_address_memmap + hhdm->offset, PAGE_SIZE);
+    kernel_heap_base_address = ALIGN_UP(pmm_highest_address_memmap + hhdm->offset, PAGE_SIZE);
 
     kernel_heap_max_size_pages = max_heap_size_pages;
 
@@ -57,7 +57,7 @@ void *returnPageAt(uintptr_t address)
     BITMAP_UNSET_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE);
 
     // this also frees which may be dumb but idgaf
-    removePageMapping(&kernel_pmc, address);
+    removePageMapping(&kernel_pmc, address, 1);
 
     return 0;
 }

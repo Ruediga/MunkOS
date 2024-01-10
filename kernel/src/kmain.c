@@ -84,20 +84,20 @@ void kernel_entry(void)
     kprintf("Limine framebuffer width: %lu, heigth: %lu\n\r", framebuffer->width, framebuffer->height);
 
     // load a GDT
-    initGDT();
     kprintf("%s setting up gdt...\n\r", kernel_okay_string);
+    initGDT();
 
     // initialize IDT
-    initIDT();
     kprintf("%s enabling interrupts...\n\r", kernel_okay_string);
+    initIDT();
 
     // pmm
-    initPMM();
     kprintf("%s initializing pmm...\n\r", kernel_okay_string);
+    initPMM();
 
     // vmm
-    initVMM();
     kprintf("%s initializing vmm && kernel pm...\n\r", kernel_okay_string);
+    initVMM();
 
     // put new kernel stack at the top of virtual address space because why not
     allocNewKernelStack(0xFFFF / PAGE_SIZE);
@@ -106,18 +106,17 @@ void kernel_entry(void)
     initializeKernelHeap(0xFFFFFFF / PAGE_SIZE);
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
-    parseACPI();
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
+    parseACPI();
 
-    /*char vendor[13];
-    cpuid_getCpuVendor(vendor);
-    kprintf("CPU Vendor: %s\n", vendor);
+    const char *vendor = cpuid_getCpuVendor();
+    kprintf("CPU Vendor: %s\n", (const char *)vendor);
 
     asm volatile (
         "movq $50, %rdx\n"
         "xor %rax, %rax\n"
         "div %rdx\n"
-    );*/
+    );
 
     // halt
     kprintf("\n\rDone...");

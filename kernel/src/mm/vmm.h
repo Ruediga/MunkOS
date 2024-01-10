@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include <std/macros.h>
 
@@ -52,6 +53,6 @@ extern page_map_ctx kernel_pmc;
  *  - bits 0 - 11
 */
 void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
-void removePageMapping(page_map_ctx *pmc, uintptr_t va);
+void removePageMapping(page_map_ctx *pmc, uintptr_t va, bool free_pa);
 
 void setCtxToPM(const page_map_ctx *pmc);

@@ -1,3 +1,3 @@
 #pragma once
 
-void cpuid_getCpuVendor(char str[static 13]);
+const char *cpuid_getCpuVendor(void);

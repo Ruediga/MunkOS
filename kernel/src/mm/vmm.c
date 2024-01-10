@@ -2,8 +2,6 @@
 #include "mm/pmm.h"
 #include "limine.h"
 #include "std/kprintf.h"
-#include "vmm.h"
-#include <stdbool.h>
 #include "std/typedefs.h"
 #include "std/memory.h"
 
@@ -129,9 +127,9 @@ static void initKPM(void)
     // limine
     struct limine_kernel_address_response *ka = kernel_address_request.response;
 
-    // map bitmap
-    for (size_t off = 0; off < ALIGN_UP(bitmap_size_bytes, PAGE_SIZE); off += PAGE_SIZE) {
-        mapPage(&kernel_pmc, (uintptr_t)page_bitmap + off, (uintptr_t)page_bitmap - hhdm->offset + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    // map pmm data structures
+    for (size_t off = 0; off < ALIGN_UP(pmm_total_bytes_pmm_structures, PAGE_SIZE); off += PAGE_SIZE) {
+        mapPage(&kernel_pmc, (uintptr_t)pmm_page_bitmap + off, (uintptr_t)pmm_page_bitmap - hhdm->offset + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
 
     for (size_t i = 0; i < memmap->entry_count; i++) {
@@ -200,7 +198,7 @@ void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
 }
 
 // remove a mapping AND DEALLOCATES PHYSICAL PAGE!!
-void removePageMapping(page_map_ctx *pmc, uintptr_t va)
+void removePageMapping(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 {
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4ToPT((uint64_t *)pmc->pml4_address, va, false);
@@ -211,7 +209,9 @@ void removePageMapping(page_map_ctx *pmc, uintptr_t va)
     }
 
     // free page
-    pmmFreeContiguousPages((void *)(pt[pt_index] & 0x000ffffffffff000), 1);
+    if (free_pa) {
+        pmmFreeContiguousPages((void *)(pt[pt_index] & 0x000ffffffffff000), 1);
+    }
 
     // unmap page
     pt[pt_index] = 0x0;
