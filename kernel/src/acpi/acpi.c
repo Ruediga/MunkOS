@@ -1,9 +1,5 @@
-#include "limine.h"
-#include <stdbool.h>
-#include <stddef.h>
 #include "std/kprintf.h"
 #include "std/memory.h"
-
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "acpi.h"
@@ -30,6 +26,9 @@ static vector vec_lapic;
 // these need to hold addresses of vector->data!
 struct ioapic *ioapics;
 struct lapic *lapics;
+
+size_t ioapic_count = 0;
+size_t lapic_count = 0;
 
 static bool validate_table(struct sdt_header *table_header)
 {
@@ -75,11 +74,11 @@ void parseACPI(void)
             ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
 
-    if (!(fadt_ptr = sdtFind("FACD")) || !validate_table(&fadt_ptr->header)) {
+    if (!(fadt_ptr = sdtFind("FACP")) || !validate_table(&fadt_ptr->header)) {
         kprintf("FADT not found\n");
         asm volatile("cli\n hlt");
     }
-    if (!(madt_ptr = sdtFind("ACPI")) || !validate_table(&madt_ptr->header)) {
+    if (!(madt_ptr = sdtFind("APIC")) || !validate_table(&madt_ptr->header)) {
         kprintf("MADT not found\n");
         asm volatile("cli\n hlt");
     }
@@ -102,7 +101,9 @@ void *sdtFind(const char signature[static 4])
             (struct sdt_header *)(((uint64_t *)rsdt_ptr->ptr)[i] + hhdm->offset)
             : (struct sdt_header *)(((uint32_t *)rsdt_ptr->ptr)[i] + hhdm->offset));
 
-        if (memcmp(head->signature, signature, 4)) {
+        if (!memcmp(head->signature, signature, 4)) {
+            kprintf("  - acpi: %4s found at (pa) 0x%p of length %-u\n",
+                signature, (uintptr_t)head - hhdm->offset, head->length);
             return head;
         }
     }
@@ -112,18 +113,24 @@ void *sdtFind(const char signature[static 4])
 
 void parseMADT(struct madt *_madt)
 {
-    for (uintptr_t off = sizeof(struct madt); off < _madt->header.length; ) {
+    for (uintptr_t off = 0; off < _madt->header.length - sizeof(struct madt); ) {
         struct madt_header *madt_hdr = (struct madt_header *)(_madt->entries + off);
-
         if (madt_hdr->lcst_id == MADT_ENTRY_PROCESSOR_LAPIC) {
             // lapic
             vector_append(&vec_lapic, madt_hdr, madt_hdr->length);
+            lapic_count++;
         }
         else if (madt_hdr->lcst_id == MADT_ENTRY_IO_APIC) {
             // ioapic
             vector_append(&vec_ioapic, madt_hdr, madt_hdr->length);
+            ioapic_count++;
         }
 
-        off += (madt_hdr->length ? madt_hdr->length : 2);
+        off += MAX(madt_hdr->length, 2);
+    }
+    kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapic_count, lapic_count);
+    if (ioapic_count == 0) {
+        kprintf("Systems without an IOAPIC are not supported!\n");
+        asm volatile ("cli\n hlt");
     }
 }

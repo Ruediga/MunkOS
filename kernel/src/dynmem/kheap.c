@@ -17,9 +17,6 @@ void initializeKernelHeap(size_t max_heap_size_pages)
 
     kernel_heap_max_size_pages = max_heap_size_pages;
 
-    // port liballoc and write functions to allocate / free kernel heap memory
-    // maybe heap bitmap to know where to map physical pages when stuff gets freed
-
     // take one direct mapped page and put a bitmap there to store which pages in the bitmap are taken
     kernel_heap_bitmap = pmmClaimContiguousPages(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8));
     if (!kernel_heap_bitmap) {
@@ -28,6 +25,8 @@ void initializeKernelHeap(size_t max_heap_size_pages)
     }
     kernel_heap_bitmap += hhdm->offset;
     memset(kernel_heap_bitmap, 0x00, PAGE_SIZE);
+
+    kprintf("  - kheap: %lu MiB dynamic memory available\n", kernel_heap_max_size_pages / (1024 * 1024));
 }
 
 // returns a single page mapped to (page aligned) address

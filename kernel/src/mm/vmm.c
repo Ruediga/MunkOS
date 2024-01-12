@@ -139,7 +139,7 @@ static void initKPM(void)
         //printf("Entry %-2lu: Base = 0x%016lX, End = 0x%016lX, Length = %lu bytes, Type = %lu\n\r",
         //    i, entry->base, entry->base + entry->length, entry->length, entry->type);
 
-        // map usable entries as read and write for now
+        // direct map usable entries for now
         if (entry->type == LIMINE_MEMMAP_USABLE) {
             for (size_t off = entry->base; off < entry->base + entry->length; off += PAGE_SIZE) {
                 mapPage(&kernel_pmc, off + hhdm->offset, off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);

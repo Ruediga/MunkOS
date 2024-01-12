@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 // 4096 byte pages
-#define PAGE_SIZE 0x1000
+#define PAGE_SIZE 0x1000ul
 
 // keep track of where on the bitmap are usable areas,
 // so time is saved when looking for free pages

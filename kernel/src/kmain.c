@@ -44,6 +44,9 @@ void hcf(void)
     }
 }
 
+// global flanterm context
+struct flanterm_context *ft_ctx;
+
 void allocNewKernelStack(size_t new_stack_size_pages)
 {
     for (size_t addr = 0xFFFFFFFFFFFFFFFF; addr > 0xFFFFFFFFFFFFFFFF - (new_stack_size_pages * PAGE_SIZE); addr -= PAGE_SIZE) {
@@ -56,9 +59,6 @@ void allocNewKernelStack(size_t new_stack_size_pages)
         : : : "memory"
     );
 }
-
-// global flanterm context
-struct flanterm_context *ft_ctx;
 
 void kernel_entry(void)
 {
@@ -81,7 +81,7 @@ void kernel_entry(void)
     ft_ctx = flanterm_fb_simple_init(
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
 
-    kprintf("Limine framebuffer width: %lu, heigth: %lu\n\r", framebuffer->width, framebuffer->height);
+    kprintf("%s framebuffer width: %lu, heigth: %lu\n\r", kernel_okay_string, framebuffer->width, framebuffer->height);
 
     // load a GDT
     kprintf("%s setting up gdt...\n\r", kernel_okay_string);
@@ -99,26 +99,34 @@ void kernel_entry(void)
     kprintf("%s initializing vmm && kernel pm...\n\r", kernel_okay_string);
     initVMM();
 
+    // heap
+    initializeKernelHeap((0xFFul * 1024ul * 1024ul * 4096ul) / PAGE_SIZE);
+    kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
+
     // put new kernel stack at the top of virtual address space because why not
     allocNewKernelStack(0xFFFF / PAGE_SIZE);
-
-    // heap
-    initializeKernelHeap(0xFFFFFFF / PAGE_SIZE);
-    kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
     parseACPI();
 
-    const char *vendor = cpuid_getCpuVendor();
-    kprintf("CPU Vendor: %s\n", (const char *)vendor);
+    struct cpuid_data_common cpuid_data = {};
+    cpuid_common(&cpuid_data);
 
-    asm volatile (
-        "movq $50, %rdx\n"
-        "xor %rax, %rax\n"
-        "div %rdx\n"
-    );
+    kprintf("highest supported function: %u\n", cpuid_data.highest_supported_std_func);
+    kprintf("vendor: %s\n", cpuid_data.cpu_vendor);
+    kprintf("family: %u\n", (uint32_t)cpuid_data.family);
+    kprintf("model: %u\n", (uint32_t)cpuid_data.model);
+    kprintf("stepping: %u\n", (uint32_t)cpuid_data.stepping);
+    kprintf("apic id: %u\n", (uint32_t)cpuid_data.apic_id);
+    kprintf("cpu count: %u\n", (uint32_t)cpuid_data.cpu_count);
+    kprintf("clfush size: %u\n", (uint32_t)cpuid_data.clflush_size);
+    kprintf("brand id: %u\n", (uint32_t)cpuid_data.brand_id);
+    kprintf("feature flags (ecx): 0b%032lb\n", (uint64_t)cpuid_data.feature_flags_ecx);
+    kprintf("feature flags (edx): 0b%032lb\n", (uint64_t)cpuid_data.feature_flags_edx);
+    kprintf("cpu name: %s\n", cpuid_data.cpu_name_string);
 
     // halt
+    asm volatile ("sti");
     kprintf("\n\rDone...");
     asm volatile("loop: jmp loop\n");
 }

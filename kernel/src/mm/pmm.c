@@ -125,8 +125,8 @@ void initPMM(void)
     fillBitmap();
 
     kprintf("  - pmm: total memory: %luMiB, of which %luMiB usable\n",
-        (pmm_pages_usable * PAGE_SIZE) / (1024 * 1024),
-        ((pmm_pages_usable - pmm_pages_in_use) * PAGE_SIZE) / (1024 * 1024));
+        (pmm_pages_total * PAGE_SIZE) / (1024 * 1024),
+        ((pmm_pages_usable) * PAGE_SIZE) / (1024 * 1024));
 
     // for no real reason other than why not don't allow running the OS with
     // less than 1 GiB of usable memory

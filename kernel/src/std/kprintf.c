@@ -244,6 +244,7 @@ int kprintf(const char *format, ...)
 
         // flags
         int brk = 0;
+        flags = 0;
         while (!brk)
         {
             switch (*format)

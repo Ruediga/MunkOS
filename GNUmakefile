@@ -3,8 +3,9 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 2G --no-reboot -no-shutdown
-override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off -D log.txt -enable-kvm -cpu host
+override BASE_QEMU_ARGS := -M q35 -m 10G
+override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off\
+	-D log.txt -enable-kvm -cpu host --no-reboot -no-shutdown -smp 8
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -29,10 +30,7 @@ override DEFAULT_HOST_LIBS :=
 $(eval $(call DEFAULT_VAR,HOST_LIBS,$(DEFAULT_HOST_LIBS)))
 
 .PHONY: all
-all: $(IMAGE_NAME).iso
-
-.PHONY: all-hdd
-all-hdd: $(IMAGE_NAME).img
+all:
 
 .PHONY: run-iso-bios
 run-iso-bios: $(IMAGE_NAME).iso
