@@ -6,7 +6,7 @@ Currently, MunkOS only contains a kernel (with very minimal features), supports 
 
 # Building
 
-[TODO] finish list, script for cross compiler toolchain
+[TODO] finish list, script for cross compiler toolchain?
 
 You're going to have the least problems using Linux distro like Arch (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, apk, ...):
 
@@ -21,7 +21,7 @@ run-img-bios
 run-img-uefi
 ```
 
-If it crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (cpuid leaf 0x1: family=6, model =141, stepping=1), your hardware is broken and you should demand a refund.
+If it crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (cpuid leaf 0x1: family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
 
 ### Third party software
 
@@ -40,8 +40,8 @@ Currently, I prioritize work on the kernel.
 - [x] Kernel-Heap
 - [x] Interrupts
 - [x] ACPI
-- [ ] I/O APIC
-- [ ] LAPIC
+- [ ] I/O APIC // working on
+- [ ] LAPIC // working on next
 - [ ] Timer
 - [ ] PS2 driver
 - [ ] Threads
