@@ -8,12 +8,12 @@
 bool xsdt_present;
 
 // root system description pointer (pa)
-struct rsdp *rsdp_ptr = NULL;
+struct acpi_rsdp *rsdp_ptr = NULL;
 // root / extended system description table (pa)
-struct rsdt *rsdt_ptr = NULL;
+struct acpi_rsdt *rsdt_ptr = NULL;
 
-struct fadt *fadt_ptr = NULL;
-struct madt *madt_ptr = NULL;
+struct acpi_fadt *fadt_ptr = NULL;
+struct acpi_madt *madt_ptr = NULL;
 
 struct limine_rsdp_request rsdp_request = {
     .id = LIMINE_RSDP_REQUEST,
@@ -22,15 +22,18 @@ struct limine_rsdp_request rsdp_request = {
 
 static vector vec_ioapic;
 static vector vec_lapic;
+static vector vec_iso;
 
 // these need to hold addresses of vector->data!
-struct ioapic *ioapics;
-struct lapic *lapics;
+struct acpi_ioapic *ioapics;
+struct acpi_lapic *lapics;
+struct acpi_iso *isos;
 
 size_t ioapic_count = 0;
 size_t lapic_count = 0;
+size_t iso_count = 0;
 
-static bool validate_table(struct sdt_header *table_header)
+static bool validate_table(struct acpi_sdt_header *table_header)
 {
     uint8_t sum = 0;
 
@@ -55,8 +58,8 @@ void parseACPI(void)
 
     // use xsdt for newer revisions
     xsdt_present = (rsdp_ptr->revision >= 2) ? true : false;
-    rsdt_ptr = xsdt_present ? (struct rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
-        : (struct rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
+    rsdt_ptr = xsdt_present ? (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
+        : (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
     if (rsdt_ptr == NULL) {
         kprintf("ACPI is not supported\n");
         asm volatile("cli\n hlt");
@@ -65,10 +68,10 @@ void parseACPI(void)
         ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
 
     // temp solution [FIXME] to map acpi tables
-    size_t entry_count = (rsdt_ptr->header.length - sizeof(struct sdt_header)) / (xsdt_present ? 8 : 4);
+    size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
     for (size_t i = 0; i < entry_count; i++) {
-        struct sdt_header *head = NULL;
-        head = (struct sdt_header *)(xsdt_present ? (((uint64_t *)(rsdt_ptr->ptr))[i] + hhdm->offset)
+        struct acpi_sdt_header *head = NULL;
+        head = (struct acpi_sdt_header *)(xsdt_present ? (((uint64_t *)(rsdt_ptr->ptr))[i] + hhdm->offset)
             : ((((uint32_t *)(rsdt_ptr->ptr))[i]) + hhdm->offset));
         mapPage(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
             ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
@@ -85,21 +88,23 @@ void parseACPI(void)
 
     vector_init(&vec_lapic);
     vector_init(&vec_ioapic);
+    vector_init(&vec_iso);
     parseMADT(madt_ptr);
-    lapics = (struct lapic *)vec_lapic.data;
-    ioapics = (struct ioapic *)vec_ioapic.data;
+    lapics = (struct acpi_lapic *)vec_lapic.data;
+    ioapics = (struct acpi_ioapic *)vec_ioapic.data;
+    isos = (struct acpi_iso *)vec_iso.data;
 
 }
 
 void *sdtFind(const char signature[static 4])
 {
     // length = bytes of the entire table
-    size_t entry_count = (rsdt_ptr->header.length - sizeof(struct sdt_header)) / (xsdt_present ? 8 : 4);
+    size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
 
     for (size_t i = 0; i < entry_count; i++) {
-        struct sdt_header *head = (xsdt_present ?
-            (struct sdt_header *)(((uint64_t *)rsdt_ptr->ptr)[i] + hhdm->offset)
-            : (struct sdt_header *)(((uint32_t *)rsdt_ptr->ptr)[i] + hhdm->offset));
+        struct acpi_sdt_header *head = (xsdt_present ?
+            (struct acpi_sdt_header *)(((uint64_t *)rsdt_ptr->ptr)[i] + hhdm->offset)
+            : (struct acpi_sdt_header *)(((uint32_t *)rsdt_ptr->ptr)[i] + hhdm->offset));
 
         if (!memcmp(head->signature, signature, 4)) {
             kprintf("  - acpi: %4s found at (pa) 0x%p of length %-u\n",
@@ -111,10 +116,10 @@ void *sdtFind(const char signature[static 4])
     return NULL;
 }
 
-void parseMADT(struct madt *_madt)
+void parseMADT(struct acpi_madt *madt)
 {
-    for (uintptr_t off = 0; off < _madt->header.length - sizeof(struct madt); ) {
-        struct madt_header *madt_hdr = (struct madt_header *)(_madt->entries + off);
+    for (uintptr_t off = 0; off < madt->header.length - sizeof(struct acpi_madt); ) {
+        struct acpi_madt_header *madt_hdr = (struct acpi_madt_header *)(madt->entries + off);
         if (madt_hdr->lcst_id == MADT_ENTRY_PROCESSOR_LAPIC) {
             // lapic
             vector_append(&vec_lapic, madt_hdr, madt_hdr->length);
@@ -125,9 +130,15 @@ void parseMADT(struct madt *_madt)
             vector_append(&vec_ioapic, madt_hdr, madt_hdr->length);
             ioapic_count++;
         }
+        else if (madt_hdr->lcst_id == MADT_ENTRY_INTERRUPT_SOURCE_OVERRIDE) {
+            // iso
+            vector_append(&vec_iso, madt_hdr, madt_hdr->length);
+            iso_count++;
+        }
 
-        off += MAX(madt_hdr->length, 2);
+        off += madt_hdr->length;
     }
+
     kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapic_count, lapic_count);
     if (ioapic_count == 0) {
         kprintf("Systems without an IOAPIC are not supported!\n");

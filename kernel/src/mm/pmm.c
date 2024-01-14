@@ -75,7 +75,7 @@ static void fillBitmap(void)
         struct limine_memmap_entry *entry = memmap->entries[i];
 
         // [DBG]
-        //printf("Entry %-2lu: Base = 0x%016lx, Length = %lu bytes, Type = %lu\n\r",
+        //kprintf("Entry %-2lu: Base = 0x%p, Length = %lu bytes, Type = %lu\n\r",
         //    i, entry->base, entry->length, entry->type);
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {

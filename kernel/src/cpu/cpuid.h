@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 // https://www.lowlevel.eu/wiki/CPUID
 // doesn't include everything, but most important data
 struct cpuid_data_common {

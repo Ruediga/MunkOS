@@ -21,7 +21,7 @@
 #define MADT_ENTRY_MP_WAKEUP 0x10
 
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html
-struct rsdp {
+struct acpi_rsdp {
     // rsdt size: 20
     char signature[8];
     uint8_t checksum;
@@ -36,7 +36,7 @@ struct rsdp {
     uint8_t reserved[3];
 } __attribute__ ((packed));
 
-struct sdt_header {
+struct acpi_sdt_header {
     char signature[4];
     uint32_t length;
     uint8_t revision;
@@ -48,13 +48,13 @@ struct sdt_header {
     uint32_t creator_revision;
 };
 
-struct rsdt {
-  struct sdt_header header;
+struct acpi_rsdt {
+  struct acpi_sdt_header header;
   // rsdt: uint32_t pointer, xsdt: uin64_t pointer
   uint8_t ptr[];
 };
 
-struct gas {
+struct acpi_gas {
     uint8_t address_space;
     uint8_t bit_width;
     uint8_t bit_offset;
@@ -62,8 +62,8 @@ struct gas {
     uint64_t address;
 } __attribute__((packed));
 
-struct fadt {
-    struct sdt_header header;
+struct acpi_fadt {
+    struct acpi_sdt_header header;
     uint32_t firmware_ctrl;
     uint32_t dsdt;
 
@@ -109,7 +109,7 @@ struct fadt {
     uint8_t reserved_1;
     uint32_t flags;
 
-    struct gas reset_reg;
+    struct acpi_gas reset_reg;
 
     uint8_t reset_value;
     uint8_t reserved_2[3];
@@ -118,42 +118,52 @@ struct fadt {
     uint64_t x_firmware_control;
     uint64_t x_dsdt;
 
-    struct gas x_pm1a_event_block;
-    struct gas x_pm1b_event_block;
-    struct gas x_pm1a_control_block;
-    struct gas x_pm1b_control_block;
-    struct gas x_pm2_control_block;
-    struct gas x_pm_timer_block;
-    struct gas x_gpe0_block;
-    struct gas x_gpe1_block;
+    struct acpi_gas x_pm1a_event_block;
+    struct acpi_gas x_pm1b_event_block;
+    struct acpi_gas x_pm1a_control_block;
+    struct acpi_gas x_pm1b_control_block;
+    struct acpi_gas x_pm2_control_block;
+    struct acpi_gas x_pm_timer_block;
+    struct acpi_gas x_gpe0_block;
+    struct acpi_gas x_gpe1_block;
 };
 
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#multiple-apic-flags
 // first byte (entries): Interrupt Controller Structure Type (ICST),
 // second byte (entries): length
-struct madt {
-    struct sdt_header header;
+struct acpi_madt {
+    struct acpi_sdt_header header;
     uint32_t lapic_address_phys;
     uint32_t flags;
     uint8_t entries[];
 };
 
-struct madt_header {
+struct acpi_madt_header {
     uint8_t lcst_id;
     uint8_t length;
 } __attribute__((packed));
 
-struct lapic {
-    struct madt_header header;
+struct acpi_lapic {
+    struct acpi_madt_header header;
     uint8_t acpi_processor_uid;
     uint8_t apic_id;
     uint32_t flags;
 } __attribute__((packed));
 
-struct ioapic {
-    struct madt_header header;
+struct acpi_ioapic {
+    struct acpi_madt_header header;
     uint8_t io_apic_id;
     uint8_t reserved;
     uint32_t io_apic_address; // physical
-    uint32_t global_system_interrupt_base;
+    uint32_t global_system_interrupt_base; // ints start here
+} __attribute__((packed));
+
+struct acpi_iso {
+    struct acpi_madt_header header;
+    uint8_t bus_isa;
+    uint8_t source_irq;
+    uint32_t global_system_interrupt;
+    // bits [3:2] -> trigger mode
+    // bits [1:0] -> polarity
+    uint16_t flags;
 } __attribute__((packed));

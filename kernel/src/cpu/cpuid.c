@@ -100,3 +100,7 @@ void cpuid_common(struct cpuid_data_common *data)
         memset(data->cpu_name_string, 0, 49);
     }
 }
+
+void cpuid_compatibility_check(struct ) {
+    
+}

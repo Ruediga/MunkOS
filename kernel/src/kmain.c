@@ -18,6 +18,11 @@
 #include "dynmem/liballoc.h"
 #include "acpi/acpi.h"
 #include "cpu/cpuid.h"
+#include "apic/ioapic.h"
+#include "apic/lapic.h"
+
+#include "driver/ps2_keyboard.h"
+#include "driver/pit.h"
 
 // Set the base revision to 1, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -44,21 +49,11 @@ void hcf(void)
     }
 }
 
+// global cpuid data
+struct cpuid_data_common cpuid_data = {};
+
 // global flanterm context
 struct flanterm_context *ft_ctx;
-
-void allocNewKernelStack(size_t new_stack_size_pages)
-{
-    for (size_t addr = 0xFFFFFFFFFFFFFFFF; addr > 0xFFFFFFFFFFFFFFFF - (new_stack_size_pages * PAGE_SIZE); addr -= PAGE_SIZE) {
-        void *new_page = pmmClaimContiguousPages(1);
-        mapPage(&kernel_pmc, addr, (uintptr_t)new_page, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
-    }
-
-    asm volatile (
-        "movq $0xFFFFFFFFFFFFFFFF, %%rsp\n"
-        : : : "memory"
-    );
-}
 
 void kernel_entry(void)
 {
@@ -103,15 +98,8 @@ void kernel_entry(void)
     initializeKernelHeap((0xFFul * 1024ul * 1024ul * 4096ul) / PAGE_SIZE);
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
-    // put new kernel stack at the top of virtual address space because why not
-    allocNewKernelStack(0xFFFF / PAGE_SIZE);
-
-    kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
-    parseACPI();
-
-    struct cpuid_data_common cpuid_data = {};
     cpuid_common(&cpuid_data);
-
+    // do a compat check here
     kprintf("highest supported function: %u\n", cpuid_data.highest_supported_std_func);
     kprintf("vendor: %s\n", cpuid_data.cpu_vendor);
     kprintf("family: %u\n", (uint32_t)cpuid_data.family);
@@ -125,8 +113,24 @@ void kernel_entry(void)
     kprintf("feature flags (edx): 0b%032lb\n", (uint64_t)cpuid_data.feature_flags_edx);
     kprintf("cpu name: %s\n", cpuid_data.cpu_name_string);
 
+    kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
+    parseACPI();
+
+    kprintf("%s enabling the apic...\n\r", kernel_okay_string);
+    initLapic();
+    initIoapic();
+
+    ps2_init();
+    kprintf("ps2 done\n");
+
     // halt
     asm volatile ("sti");
     kprintf("\n\rDone...");
-    asm volatile("loop: jmp loop\n");
+
+    asm volatile (
+        "idle:\n"
+        "sti\n"
+        "hlt\n"
+        "jmp idle\n"
+    );
 }

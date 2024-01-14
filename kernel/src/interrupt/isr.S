@@ -1,6 +1,8 @@
 .section .text
 
 isr_handler_stub:
+    cli
+
     pushq %rdi
     pushq %rsi
     pushq %rbp

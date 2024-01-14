@@ -1,13 +1,22 @@
 #include "interrupt/exception.h"
 #include "std/memory.h"
 
+// [TODO] remove
+#include "driver/ps2_keyboard.h"
+#include "driver/pit.h"
+#include "limine.h"
+#include "mm/pmm.h"
+#include "mm/vmm.h"
+#include "cpu/io.h"
+#include "apic/lapic.h"
+
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
 
 #include "std/kprintf.h"
 void default_exception_handler(INT_REG_INFO *regs)
 {
-    // intel sdm vol 3, 6.1 table 6-1
+    // intel sdm vol 3, 6VMM_HIGHER_HALF.1 table 6-1
     switch (regs->vector)
     {
     case 0:
@@ -79,11 +88,21 @@ void default_exception_handler(INT_REG_INFO *regs)
     case 30:
         exc_panic(regs, "Security Exception, ", 1);
         break;
+    case 0x99:
+        uint8_t input_byte = ps2_read();
+        kprintf("%lu ",  (uint64_t)input_byte);
+        lapic_send_eoi_signal();
+        break;
+    case 0x70:
+        kprintf("PIT ");
+        pit_get_current_count();
+        lapic_send_eoi_signal();
+        break;
     default:
         exc_panic(regs, "Unhandled Exception thrown", 0);
     }
 
-    __builtin_unreachable();
+    return;
 }
 
 // cpu exception panic
@@ -109,7 +128,7 @@ void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
     kprintf("cr0: 0x%p   cr2: 0x%p   cr3: 0x%p   cr4: 0x%p\n",
         regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
-    kprintf("EFLAGS: 0x%lX\n\n", regs->eflags);
+    kprintf("EFLAGS: 0x%b\n\n", regs->eflags);
 
     for (;;) asm volatile("cli\n hlt\n");
 }
