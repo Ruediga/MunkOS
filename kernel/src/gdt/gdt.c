@@ -12,7 +12,7 @@ struct __attribute__((packed)) {
     uintptr_t gdt_ptr;
 } gdtr;
 
-void initGDT(void)
+void init_gdt(void)
 {
     // null descriptor
     gdt.gdts[0] = (segment_descriptor){ 0 };
@@ -66,10 +66,10 @@ void initGDT(void)
     gdtr.size = (uint16_t)(sizeof(gdt) - 1);
     gdtr.gdt_ptr = (uintptr_t)&gdt;
 
-    rldGDT((uintptr_t)(&gdtr));
+    rld_gdt();
 }
 
-void rldTSS(uintptr_t tss_address)
+void rld_tss(uintptr_t tss_address)
 {
     // tss (size already set)
     gdt.tss.descriptor.base_low = (uint16_t)(tss_address);
@@ -78,16 +78,16 @@ void rldTSS(uintptr_t tss_address)
     gdt.tss.descriptor.base_high = (uint8_t)(tss_address >> 24);
     gdt.tss.base = (uint32_t)(tss_address >> 32);
 
-    asm volatile (
+    __asm__ volatile (
         // load tss entry index: 5 * 8 byte
         "ltr %0"
         : : "rm" ((uint16_t)40) : "memory"
     );
 }
 
-void rldGDT(uintptr_t gdtr_ptr)
+void rld_gdt()
 {
-    asm volatile (
+    __asm__ volatile (
         "mov %0, %%rdi\n"
         "lgdt (%%rdi)\n"
         "push $0x8\n" // 8: offset kernel code 64 bit
@@ -103,7 +103,7 @@ void rldGDT(uintptr_t gdtr_ptr)
         "mov %%ax, %%ss\n"
         "retq"
         :
-        : "r" (gdtr_ptr)
+        : "r" (&gdtr)
         : "memory"
     );
 }

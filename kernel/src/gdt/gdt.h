@@ -41,6 +41,6 @@ typedef struct {
     uint16_t io_permission_bitmap;
 } __attribute__((packed)) tss;
 
-void initGDT(void);
-void rldGDT(uintptr_t gdtr_ptr);
-void rldTSS(uintptr_t tss_address);
+void init_gdt(void);
+void rld_gdt();
+void rld_tss(uintptr_t tss_address);

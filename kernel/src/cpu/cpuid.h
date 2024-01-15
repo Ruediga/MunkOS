@@ -21,3 +21,4 @@ struct cpuid_data_common {
 };
 
 void cpuid_common(struct cpuid_data_common *data);
+void cpuid_compatibility_check(struct cpuid_data_common *data);

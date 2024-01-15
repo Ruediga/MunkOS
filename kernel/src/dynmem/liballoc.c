@@ -53,7 +53,7 @@
 #if defined DEBUG || defined INFO
 #include "std/kprintf.h"
 
-#define FLUSH()		asm ("nop\n")//fflush( stdout )
+#define FLUSH()		__asm__ ("nop\n")//fflush( stdout )
 
 #endif
 

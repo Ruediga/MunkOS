@@ -40,10 +40,10 @@ Currently, I prioritize work on the kernel.
 - [x] Kernel-Heap
 - [x] Interrupts
 - [x] ACPI
-- [ ] I/O APIC // working on
-- [ ] LAPIC // working on next
+- [x] I/O APIC
+- [x] LAPIC
 - [ ] Timer
-- [ ] PS2 driver
+- [x] PS2 driver
 - [ ] Threads
 - [ ] SMP
 - [ ] Scheduler

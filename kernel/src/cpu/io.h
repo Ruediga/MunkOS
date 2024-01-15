@@ -4,13 +4,13 @@
 
 inline void outb(uint16_t port, uint8_t value)
 {
-    asm volatile("outb %0, %1" : : "a"(value), "Nd"(port) : "memory");
+    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port) : "memory");
 }
 
 inline uint8_t inb(uint16_t port)
 {
     uint8_t out;
-    asm volatile("inb %1, %0" : "=a"(out) : "Nd"(port) : "memory");
+    __asm__ volatile("inb %1, %0" : "=a"(out) : "Nd"(port) : "memory");
     return out;
 }
 
@@ -22,7 +22,7 @@ inline void io_wait(void)
 inline uint64_t read_msr(uint32_t reg)
 {
     uint32_t eax = 0, edx = 0;
-   asm volatile(
+   __asm__ volatile(
         "rdmsr"
         : "=a"(eax), "=d"(edx)
         : "c"(reg)
@@ -33,7 +33,7 @@ inline uint64_t read_msr(uint32_t reg)
 
 inline void write_msr(uint32_t reg, uint64_t value)
 {
-    asm volatile(
+    __asm__ volatile(
         "wrmsr"
         :
         : "a"((uint32_t)value), "d"((uint32_t)(value >> 32)), "c"(reg)

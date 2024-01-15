@@ -13,5 +13,5 @@ typedef struct __attribute__((packed)) {
 } idt_descriptor;
 
 void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags);
-void initIDT(void);
-void loadIDT(void);
+void init_idt(void);
+void load_idt(void);

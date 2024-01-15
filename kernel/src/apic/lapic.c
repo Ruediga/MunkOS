@@ -20,16 +20,10 @@ inline void lapic_write(uint32_t reg, uint32_t val)
     *((volatile uint32_t *)(lapic_address + reg)) = val;
 }
 
-void initLapic(void)
+void init_lapic(void)
 {
-    // [TODO] move this to compat check
-    if (!(cpuid_data.feature_flags_edx & (1 << 9))) {
-        kprintf("you don't have a lapic, get fucked\n");
-        asm volatile("cli\n hlt");
-    }
-
     lapic_address = (read_msr(0x1b) & 0xfffff000);
-    mapPage(&kernel_pmc, ALIGN_DOWN((lapic_address + hhdm->offset), PAGE_SIZE),
+    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((lapic_address + hhdm->offset), PAGE_SIZE),
         ALIGN_DOWN(lapic_address, PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     lapic_address += hhdm->offset;
 

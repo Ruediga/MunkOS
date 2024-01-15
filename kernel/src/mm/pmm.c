@@ -35,7 +35,7 @@ struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
-static void initBitmap(void)
+static void init_bitmap(void)
 {
     // upwards page aligned
     pmm_total_bytes_pmm_structures = ALIGN_UP(pmm_bitmap_size_bytes
@@ -64,11 +64,11 @@ static void initBitmap(void)
     if (!success) {
         // [DBG]
         kprintf("PMM couldn't fit the page bitmap anywhere\n");
-        asm volatile ("cli\n hlt");
+        __asm__ volatile ("cli\n hlt");
     }
 }
 
-static void fillBitmap(void)
+static void fill_bitmap(void)
 {
     size_t useable_entry_index = 0;
     for (size_t i = 0; i < memmap->entry_count; i++) {
@@ -93,14 +93,14 @@ static void fillBitmap(void)
     }
 }
 
-void initPMM(void)
+void init_pmm(void)
 {
     memmap = memmap_request.response;
     hhdm = hhdm_request.response;
 
     if (!memmap || !hhdm || memmap->entry_count <= 1) {
         kprintf("PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
-        asm volatile ("cli\n hlt");
+        __asm__ volatile ("cli\n hlt");
     }
 
     // calc page_bitmap size
@@ -121,8 +121,8 @@ void initPMM(void)
     pmm_pages_total = pmm_highest_address_usable / PAGE_SIZE;
     pmm_bitmap_size_bytes = DIV_ROUNDUP(pmm_pages_total, 8);
 
-    initBitmap();
-    fillBitmap();
+    init_bitmap();
+    fill_bitmap();
 
     kprintf("  - pmm: total memory: %luMiB, of which %luMiB usable\n",
         (pmm_pages_total * PAGE_SIZE) / (1024 * 1024),
@@ -132,11 +132,11 @@ void initPMM(void)
     // less than 1 GiB of usable memory
     if ((pmm_pages_usable * PAGE_SIZE) / (1024 * 1024) < 1000) {
         kprintf("stop being cheap and run this with >= 1 GiB of ram\n\r");
-        asm volatile ("cli\n hlt");
+        __asm__ volatile ("cli\n hlt");
     }
 }
 
-static void *_searchFree(size_t *idx, size_t *pages_found, size_t count)
+static void *search_free(size_t *idx, size_t *pages_found, size_t count)
 {
     // if free page at idx
     if (BITMAP_READ_BIT(pmm_page_bitmap, *idx) == 0) {
@@ -161,7 +161,7 @@ static void *_searchFree(size_t *idx, size_t *pages_found, size_t count)
     return NULL;
 }
 
-void *pmmClaimContiguousPages(size_t count)
+void *pmm_claim_contiguous_pages(size_t count)
 {
     size_t idx = _allocator_last_index, pages_found = 0;
     uint8_t can_retry = 1;
@@ -172,7 +172,7 @@ retry:
         idx = MAX(idx, pmm_usable_entries[entry_idx].base / PAGE_SIZE);
         size_t end = (pmm_usable_entries[entry_idx].base + pmm_usable_entries[entry_idx].length) / PAGE_SIZE;
         while (idx < end) {
-            void *ptr = _searchFree(&idx, &pages_found, count);
+            void *ptr = search_free(&idx, &pages_found, count);
             if (ptr != NULL)
                 return ptr;
         }
@@ -192,7 +192,7 @@ retry:
 }
 
 // ptr needs to be the original pointer memory was allocated from
-void pmmFreeContiguousPages(void *ptr, size_t count)
+void pmm_free_contiguous_pages(void *ptr, size_t count)
 {
     size_t starting_page = (uint64_t)ptr / PAGE_SIZE;
     for (size_t i = 0; i < count; i++) {

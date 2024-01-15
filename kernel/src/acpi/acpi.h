@@ -6,9 +6,9 @@
 #include "limine.h"
 #include "acpi/structures.h"
 
-void parseACPI(void);
-void *sdtFind(const char signature[static 4]);
-void parseMADT(struct acpi_madt *_madt);
+void parse_acpi(void);
+void *get_sdt(const char signature[static 4]);
+void parse_madt(struct acpi_madt *_madt);
 
 // root system description pointer (pa)
 extern struct acpi_rsdp *rsdp_ptr;

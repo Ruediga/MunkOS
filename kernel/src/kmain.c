@@ -20,9 +20,9 @@
 #include "cpu/cpuid.h"
 #include "apic/ioapic.h"
 #include "apic/lapic.h"
+#include "cpu/smp.h"
 
 #include "driver/ps2_keyboard.h"
-#include "driver/pit.h"
 
 // Set the base revision to 1, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -42,10 +42,10 @@ struct limine_framebuffer_request framebuffer_request = {
 // Halt and catch fire function.
 void hcf(void)
 {
-    asm("cli");
+    __asm__ ("cli");
     for (;;)
     {
-        asm("hlt");
+        __asm__ ("hlt");
     }
 }
 
@@ -70,64 +70,55 @@ void kernel_entry(void)
     // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
-    asm volatile("cli");
+    __asm__ volatile("cli");
 
-    // init flanterm (https://github.com/mintsuki/flanterm)
+    // flanterm (https://github.com/mintsuki/flanterm)
     ft_ctx = flanterm_fb_simple_init(
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
 
+    kprintf("%s performing compatibility check...\n\r", kernel_okay_string);
+    cpuid_common(&cpuid_data);
+    cpuid_compatibility_check(&cpuid_data);
+    if (!memcmp(cpuid_data.cpu_vendor, "GenuineIntel", 13)) {
+        // intel only
+        kprintf("  - cpuid: %s\n", cpuid_data.cpu_name_string);
+    }
+
     kprintf("%s framebuffer width: %lu, heigth: %lu\n\r", kernel_okay_string, framebuffer->width, framebuffer->height);
 
-    // load a GDT
     kprintf("%s setting up gdt...\n\r", kernel_okay_string);
-    initGDT();
+    init_gdt();
 
-    // initialize IDT
     kprintf("%s enabling interrupts...\n\r", kernel_okay_string);
-    initIDT();
+    init_idt();
 
     // pmm
     kprintf("%s initializing pmm...\n\r", kernel_okay_string);
-    initPMM();
+    init_pmm();
 
     // vmm
     kprintf("%s initializing vmm && kernel pm...\n\r", kernel_okay_string);
-    initVMM();
+    init_vmm();
 
     // heap
-    initializeKernelHeap((0xFFul * 1024ul * 1024ul * 4096ul) / PAGE_SIZE);
+    init_kernel_heap((0xFFul * 1024ul * 1024ul * 4096ul) / PAGE_SIZE);
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
-    cpuid_common(&cpuid_data);
-    // do a compat check here
-    kprintf("highest supported function: %u\n", cpuid_data.highest_supported_std_func);
-    kprintf("vendor: %s\n", cpuid_data.cpu_vendor);
-    kprintf("family: %u\n", (uint32_t)cpuid_data.family);
-    kprintf("model: %u\n", (uint32_t)cpuid_data.model);
-    kprintf("stepping: %u\n", (uint32_t)cpuid_data.stepping);
-    kprintf("apic id: %u\n", (uint32_t)cpuid_data.apic_id);
-    kprintf("cpu count: %u\n", (uint32_t)cpuid_data.cpu_count);
-    kprintf("clfush size: %u\n", (uint32_t)cpuid_data.clflush_size);
-    kprintf("brand id: %u\n", (uint32_t)cpuid_data.brand_id);
-    kprintf("feature flags (ecx): 0b%032lb\n", (uint64_t)cpuid_data.feature_flags_ecx);
-    kprintf("feature flags (edx): 0b%032lb\n", (uint64_t)cpuid_data.feature_flags_edx);
-    kprintf("cpu name: %s\n", cpuid_data.cpu_name_string);
-
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
-    parseACPI();
+    parse_acpi();
 
-    kprintf("%s enabling the apic...\n\r", kernel_okay_string);
-    initLapic();
-    initIoapic();
+    kprintf("%s enabling smp...\n\r", kernel_okay_string);
+    boot_other_cores();
+
+    kprintf("%s setting up the ioapic...\n\r", kernel_okay_string);
+    init_lapic();
+    init_ioapic();
 
     ps2_init();
-    kprintf("ps2 done\n");
 
-    // halt
-    asm volatile ("sti");
     kprintf("\n\rDone...");
 
-    asm volatile (
+    __asm__ volatile (
         "idle:\n"
         "sti\n"
         "hlt\n"

@@ -3,7 +3,6 @@
 
 // [TODO] remove
 #include "driver/ps2_keyboard.h"
-#include "driver/pit.h"
 #include "limine.h"
 #include "mm/pmm.h"
 #include "mm/vmm.h"
@@ -93,11 +92,6 @@ void default_exception_handler(INT_REG_INFO *regs)
         kprintf("%lu ",  (uint64_t)input_byte);
         lapic_send_eoi_signal();
         break;
-    case 0x70:
-        kprintf("PIT ");
-        pit_get_current_count();
-        lapic_send_eoi_signal();
-        break;
     default:
         exc_panic(regs, "Unhandled Exception thrown", 0);
     }
@@ -130,5 +124,5 @@ void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
 
     kprintf("EFLAGS: 0x%b\n\n", regs->eflags);
 
-    for (;;) asm volatile("cli\n hlt\n");
+    for (;;) __asm__ volatile("cli\n hlt\n");
 }

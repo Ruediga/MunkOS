@@ -1,5 +1,8 @@
 #pragma once
 
+// macros
+// ======
+
 // max / min
 #define MAX(x, y) (x > y ? x : y)
 #define MIN(x, y) (x < y ? x : y)
@@ -20,3 +23,9 @@
 // extract bits
 // EXTRACT_BITS(ul, ul, ul)
 #define EXTRACT_BITS(value, start_index, end_index) (((value) & (((1ul << ((end_index) - (start_index) + 1)) - 1) << (start_index))) >> (start_index))
+
+// typedefs
+// ========
+
+// linker symbol
+typedef char linker_symbol_ptr[];

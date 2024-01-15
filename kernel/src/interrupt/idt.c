@@ -24,23 +24,23 @@ void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags) {
     descriptor->reserved = 0;
 }
 
-void initIDT(void)
+void init_idt(void)
 {
     // fill idt
     for (size_t vector = 0; vector <= 255; vector++) {
         idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
     }
 
-    loadIDT();
+    load_idt();
 }
 
-inline void loadIDT(void)
+inline void load_idt(void)
 {
     idtr.offset = (uintptr_t)idt;
     // max descriptors - 1
     idtr.size = (uint16_t)(sizeof(idt) - 1);
 
-    asm volatile (
+    __asm__ volatile (
         "lidt %0"
         : : "m"(idtr) : "memory"
     );

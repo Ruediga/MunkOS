@@ -1,9 +1,7 @@
 # Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
-# This is the name that our final kernel executable will have.
-# Change as needed.
-override KERNEL := kernel.elf_x86_64
+override KERNEL_NAME := kernel.elf_x86_64
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -46,7 +44,7 @@ override CFLAGS += \
     -Wall \
     -Werror \
     -Wextra \
-    -std=gnu11 \
+    -std=c11 \
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \
@@ -93,13 +91,13 @@ override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
 
 # Default target.
 .PHONY: all
-all: bin/$(KERNEL)
+all: bin/$(KERNEL_NAME)
 
 src/limine.h:
 	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
 # Link rules for the final kernel executable.
-bin/$(KERNEL): GNUmakefile linker.ld $(OBJ)
+bin/$(KERNEL_NAME): GNUmakefile linker.ld $(OBJ)
 	mkdir -p "$$(dirname $@)"
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
 

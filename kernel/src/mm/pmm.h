@@ -31,6 +31,6 @@ extern uint64_t pmm_total_bytes_pmm_structures;
 extern uint64_t pmm_bitmap_size_bytes;
 extern uint64_t pmm_highest_address_usable;
 
-void initPMM(void);
-void *pmmClaimContiguousPages(size_t count);
-void pmmFreeContiguousPages(void *ptr, size_t count);
+void init_pmm(void);
+void *pmm_claim_contiguous_pages(size_t count);
+void pmm_free_contiguous_pages(void *ptr, size_t count);

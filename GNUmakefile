@@ -3,9 +3,9 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 16G
+override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -cpu host -smp 8
 override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off\
-	-D log.txt -enable-kvm -cpu host -smp 4
+	-D log.txt -vga virtio
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -42,11 +42,13 @@ run-iso-uefi: ovmf $(IMAGE_NAME).iso
 
 .PHONY: run-img-bios
 run-img-bios: $(IMAGE_NAME).img
-	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -hda $(IMAGE_NAME).img
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS)\
+		-drive file=$(IMAGE_NAME).img,format=raw
 
 .PHONY: run-img-uefi
 run-img-uefi: ovmf $(IMAGE_NAME).img
-	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd -hda $(IMAGE_NAME).img
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd\
+		-drive file=$(IMAGE_NAME).img,format=raw
 
 ovmf:
 	mkdir -p ovmf

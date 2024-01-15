@@ -45,15 +45,15 @@ static bool validate_table(struct acpi_sdt_header *table_header)
 }
 
 // [FIXME] fix this shitty stuff with the mapping
-void parseACPI(void)
+void parse_acpi(void)
 {
     if (rsdp_request.response == NULL || rsdp_request.response->address == NULL) {
         kprintf("ACPI is not supported\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
 
     rsdp_ptr = rsdp_request.response->address;
-    mapPage(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdp_ptr, PAGE_SIZE),
+    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdp_ptr, PAGE_SIZE),
         ALIGN_DOWN(((uintptr_t)rsdp_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
 
     // use xsdt for newer revisions
@@ -62,9 +62,9 @@ void parseACPI(void)
         : (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
     if (rsdt_ptr == NULL) {
         kprintf("ACPI is not supported\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
-    mapPage(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
+    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
         ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
 
     // temp solution [FIXME] to map acpi tables
@@ -73,30 +73,30 @@ void parseACPI(void)
         struct acpi_sdt_header *head = NULL;
         head = (struct acpi_sdt_header *)(xsdt_present ? (((uint64_t *)(rsdt_ptr->ptr))[i] + hhdm->offset)
             : ((((uint32_t *)(rsdt_ptr->ptr))[i]) + hhdm->offset));
-        mapPage(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
+        vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
             ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
 
-    if (!(fadt_ptr = sdtFind("FACP")) || !validate_table(&fadt_ptr->header)) {
+    if (!(fadt_ptr = get_sdt("FACP")) || !validate_table(&fadt_ptr->header)) {
         kprintf("FADT not found\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
-    if (!(madt_ptr = sdtFind("APIC")) || !validate_table(&madt_ptr->header)) {
+    if (!(madt_ptr = get_sdt("APIC")) || !validate_table(&madt_ptr->header)) {
         kprintf("MADT not found\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
 
     vector_init(&vec_lapic);
     vector_init(&vec_ioapic);
     vector_init(&vec_iso);
-    parseMADT(madt_ptr);
+    parse_madt(madt_ptr);
     lapics = (struct acpi_lapic *)vec_lapic.data;
     ioapics = (struct acpi_ioapic *)vec_ioapic.data;
     isos = (struct acpi_iso *)vec_iso.data;
 
 }
 
-void *sdtFind(const char signature[static 4])
+void *get_sdt(const char signature[static 4])
 {
     // length = bytes of the entire table
     size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
@@ -116,7 +116,7 @@ void *sdtFind(const char signature[static 4])
     return NULL;
 }
 
-void parseMADT(struct acpi_madt *madt)
+void parse_madt(struct acpi_madt *madt)
 {
     for (uintptr_t off = 0; off < madt->header.length - sizeof(struct acpi_madt); ) {
         struct acpi_madt_header *madt_hdr = (struct acpi_madt_header *)(madt->entries + off);
@@ -142,6 +142,6 @@ void parseMADT(struct acpi_madt *madt)
     kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapic_count, lapic_count);
     if (ioapic_count == 0) {
         kprintf("Systems without an IOAPIC are not supported!\n");
-        asm volatile ("cli\n hlt");
+        __asm__ volatile ("cli\n hlt");
     }
 }

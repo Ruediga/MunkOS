@@ -6,7 +6,7 @@
 
 #include <std/macros.h>
 
-void initVMM(void);
+void init_vmm(void);
 
 typedef struct {
     uintptr_t pml4_address;
@@ -52,7 +52,7 @@ extern page_map_ctx kernel_pmc;
  *  - level 0
  *  - bits 0 - 11
 */
-void mapPage(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
-void removePageMapping(page_map_ctx *pmc, uintptr_t va, bool free_pa);
+void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
+void vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa);
 
-void setCtxToPM(const page_map_ctx *pmc);
+void vmm_set_ctx(const page_map_ctx *pmc);

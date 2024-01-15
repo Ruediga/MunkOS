@@ -76,7 +76,7 @@
  *  - selects IRQL in the IRT and based on that entry, sends interrupt
  *    with some priority to some CPU (LAPIC). Either high or edge triggered
 */
-void initIoapic(void)
+void init_ioapic(void)
 {
     // ICW1 command:
     outb(0x20, 0b00010001); // INIT | SEND_ICW4
@@ -98,10 +98,9 @@ void initIoapic(void)
     outb(0x21, 0xFF);
     outb(0xA1, 0xFF);
 
-    kprintf("mapping ioapics\n");
     // should be 4KiB aligned, if not, good luck
     for (size_t i = 0; i < ioapic_count; i++) {
-        mapPage(&kernel_pmc, ALIGN_DOWN(((uintptr_t)ioapics[i].io_apic_address + hhdm->offset), PAGE_SIZE),
+        vmm_map_single_page(&kernel_pmc, ALIGN_DOWN(((uintptr_t)ioapics[i].io_apic_address + hhdm->offset), PAGE_SIZE),
             ALIGN_DOWN((uintptr_t)ioapics[i].io_apic_address, PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
 }
@@ -141,7 +140,7 @@ void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
     }
     if (!ioapic) {
         kprintf("IRQL %u isn't mapped to any IOAPIC!\n", (uint64_t)irq);
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
 
     uint32_t entry_high = lapic_id << (56 - 32);

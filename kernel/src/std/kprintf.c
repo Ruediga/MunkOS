@@ -28,6 +28,7 @@
 #include <stddef.h>
 
 #include "std/kprintf.h"
+#include "cpu/cpu.h"
 
 const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 
@@ -55,6 +56,7 @@ const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
+static k_spinlock kprintf_lock;
 static inline void putc_(char c)
 {
     flanterm_write(ft_ctx, &c, 1);
@@ -224,6 +226,7 @@ static void _ntoa_long(int *total, unsigned long value, bool negative, unsigned 
 
 int kprintf(const char *format, ...)
 {
+    acquire_lock(&kprintf_lock);
     va_list var_args;
     va_start(var_args, format);
 
@@ -525,6 +528,8 @@ int kprintf(const char *format, ...)
     }
 
     va_end(var_args);
+
+    release_lock(&kprintf_lock);
 
     return 0;
 }

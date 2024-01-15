@@ -101,6 +101,32 @@ void cpuid_common(struct cpuid_data_common *data)
     }
 }
 
-void cpuid_compatibility_check(struct ) {
-    
+void cpuid_compatibility_check(struct cpuid_data_common *data)
+{
+    uint8_t okay = 1;
+
+    // x2APIC
+    if (!(data->feature_flags_ecx & (1 << 21))) okay = 0;
+    // SSE4.2
+    if (!(data->feature_flags_ecx & (1 << 20))) okay = 0;
+
+    // can multicore
+    if (!(data->feature_flags_edx & (1 << 28))) okay = 0;
+    // FXSAVE and FXRSTOR
+    if (!(data->feature_flags_edx & (1 << 24))) okay = 0;
+    // processor monitoring
+    //if (!(data->feature_flags_edx & (1 << 22))) okay = 0;
+    // SYSENTER / SYSEXIT
+    if (!(data->feature_flags_edx & (1 << 11))) okay = 0;
+    // has a lapic
+    if (!(data->feature_flags_edx & (1 << 9))) okay = 0;
+    // > 32bit PA
+    if (!(data->feature_flags_edx & (1 << 6))) okay = 0;
+    // x87 FPU
+    if (!(data->feature_flags_edx & (1 << 0))) okay = 0;
+
+    if (!okay) {
+        kprintf("\nYour CPU doesn't support required hardware features.\n");
+        __asm__ volatile ("cli\n hlt");
+    }
 }

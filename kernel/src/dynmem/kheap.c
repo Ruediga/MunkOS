@@ -10,7 +10,7 @@ uint64_t kernel_heap_max_size_pages = 0x0;
 uintptr_t kernel_heap_base_address = 0x0;
 uint8_t *kernel_heap_bitmap = 0x0;
 
-void initializeKernelHeap(size_t max_heap_size_pages)
+void init_kernel_heap(size_t max_heap_size_pages)
 {
     // place the heap right after the direct map (if full) in (virtual) memory
     kernel_heap_base_address = ALIGN_UP(pmm_highest_address_memmap + hhdm->offset, PAGE_SIZE);
@@ -18,10 +18,10 @@ void initializeKernelHeap(size_t max_heap_size_pages)
     kernel_heap_max_size_pages = max_heap_size_pages;
 
     // take one direct mapped page and put a bitmap there to store which pages in the bitmap are taken
-    kernel_heap_bitmap = pmmClaimContiguousPages(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8));
+    kernel_heap_bitmap = pmm_claim_contiguous_pages(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8));
     if (!kernel_heap_bitmap) {
         kprintf("no memory (for kernel heap bitmap)\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
     kernel_heap_bitmap += hhdm->offset;
     memset(kernel_heap_bitmap, 0x00, PAGE_SIZE);
@@ -30,24 +30,24 @@ void initializeKernelHeap(size_t max_heap_size_pages)
 }
 
 // returns a single page mapped to (page aligned) address
-void *getPageAt(uintptr_t address)
+void *get_page_at(uintptr_t address)
 {
     if (BITMAP_READ_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE) != 0) {
         kprintf("trying to allocate heap page that was never freed\n");
-        asm volatile("cli\n hlt");
+        __asm__ volatile("cli\n hlt");
     }
-    void *new_page = pmmClaimContiguousPages(1);
+    void *new_page = pmm_claim_contiguous_pages(1);
     if (new_page == NULL) {
         return NULL;
     }
-    mapPage(&kernel_pmc, address, (uintptr_t)new_page, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
+    vmm_map_single_page(&kernel_pmc, address, (uintptr_t)new_page, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
     BITMAP_SET_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE);
 
     return (void *)address;
 }
 
 // unmaps and deallocates a page at a (page aligned) va
-void *returnPageAt(uintptr_t address)
+void *return_page_at(uintptr_t address)
 {
     if (BITMAP_READ_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE) == 0) {
         return 0;
@@ -56,7 +56,7 @@ void *returnPageAt(uintptr_t address)
     BITMAP_UNSET_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE);
 
     // this also frees which may be dumb but idgaf
-    removePageMapping(&kernel_pmc, address, 1);
+    vmm_unmap_single_page(&kernel_pmc, address, 1);
 
     return 0;
 }
@@ -101,7 +101,7 @@ extern void* liballoc_alloc(int c) {
             if (pages_found == count) {
                 // alloc them
                 for (size_t j = (idx + 1) - count; j <= idx; j++) {
-                    if (!getPageAt(kernel_heap_base_address + (j * PAGE_SIZE))) {
+                    if (!get_page_at(kernel_heap_base_address + (j * PAGE_SIZE))) {
                         return NULL;
                     }
                 }
@@ -131,7 +131,7 @@ extern void* liballoc_alloc(int c) {
  */
 extern int liballoc_free(void* address, int count) {
     for (int i = 0; i < count; i++) {
-        returnPageAt(((uintptr_t)address + (i * PAGE_SIZE)));
+        return_page_at(((uintptr_t)address + (i * PAGE_SIZE)));
     }
     // [DBG]
     //printf("Freed %i pages from kernel heap at 0x%016lX\n", count, address);

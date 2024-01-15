@@ -5,6 +5,9 @@
 
 #include <stdint.h>
 
+// stolen ps2 driver for testing
+// =============================
+
 uint8_t ps2_keyboard_vector = 0;
 
 uint8_t ps2_read(void) {
