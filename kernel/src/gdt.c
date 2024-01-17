@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "gdt/gdt.h"
+#include "gdt.h"
 
 struct __attribute__((packed)) {
     segment_descriptor gdts[5];

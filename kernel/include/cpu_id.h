@@ -2,8 +2,7 @@
 
 #include <stdint.h>
 
-// https://www.lowlevel.eu/wiki/CPUID
-// doesn't include everything, but most important data
+// https://sandpile.org/x86/cpuid.htm
 struct cpuid_data_common {
     uint32_t highest_supported_std_func;
     char cpu_vendor[13]; // null terminated

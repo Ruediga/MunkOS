@@ -1,6 +1,10 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+#include "limine.h"
 
 #define MADT_ENTRY_PROCESSOR_LAPIC 0x0
 #define MADT_ENTRY_IO_APIC 0x1
@@ -19,6 +23,24 @@
 #define MADT_ENTRY_GIC_REDISTRIBUTOR 0xE
 #define MADT_ENTRY_GIC_INTERRUPT_TRANSLATION_SERVICE 0xF
 #define MADT_ENTRY_MP_WAKEUP 0x10
+
+// root system description pointer (pa)
+extern struct acpi_rsdp *rsdp_ptr;
+// root / extended system description table (pa)
+extern struct acpi_rsdt *rsdt_ptr;
+
+extern struct acpi_fadt *fadt_ptr;
+extern struct acpi_madt *madt_ptr;
+
+extern struct limine_rsdp_request rsdp_request;
+
+extern struct acpi_ioapic *ioapics;
+extern struct acpi_lapic *lapics;
+extern struct acpi_iso *isos;
+
+extern size_t ioapic_count;
+extern size_t lapic_count;
+extern size_t iso_count;
 
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html
 struct acpi_rsdp {
@@ -167,3 +189,7 @@ struct acpi_iso {
     // bits [1:0] -> polarity
     uint16_t flags;
 } __attribute__((packed));
+
+void parse_acpi(void);
+void *get_sdt(const char signature[static 4]);
+void parse_madt(struct acpi_madt *_madt);

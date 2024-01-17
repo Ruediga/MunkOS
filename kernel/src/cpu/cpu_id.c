@@ -1,10 +1,10 @@
 #include <cpuid.h>
 #include <stdint.h>
 
-#include "cpuid.h"
-#include "dynmem/liballoc.h"
-#include "std/kprintf.h"
-#include "std/memory.h"
+#include "cpu_id.h"
+#include "liballoc.h"
+#include "kprintf.h"
+#include "memory.h"
 
 // 13 chars (including \0)
 static void cpuid_leaf0x0(struct cpuid_data_common *data)

@@ -1,8 +1,7 @@
-.section .text
+.globl handlers
+.extern handlers
 
 isr_handler_stub:
-    cli
-
     pushq %rdi
     pushq %rsi
     pushq %rbp
@@ -32,12 +31,14 @@ isr_handler_stub:
 
     # void default_exception_handler(INT_REG_INFO *regs)
     movq %rsp, %rdi
-    callq default_exception_handler
+    movq 168(%rsp), %rbx        # read n from the stack
+    shlq $3, %rbx               # offset = n * 8
+    leaq handlers(%rip), %rax   # load the pointers base address
+    addq %rbx, %rax             # base + offset
+    callq *(%rax)               # go to where rax value points and call this address
 
-    # cr0 - cr4
-    add $32, %rsp
-    # popfq back
-    addq $8, %rsp
+    # cr0 - cr4 and pushfq
+    addq $40, %rsp
     popq %r15
     popq %r14
     popq %r13
@@ -70,9 +71,9 @@ _isr\index:
 .if 0x\index != 8 && 0x\index != 10 && 0x\index != 11 && 0x\index != 12 && 0x\index != 13 && 0x\index != 14 && 0x\index != 17 && 0x\index != 30
     pushq $0
 .endif
-	pushq $0x\index
     cli
-	jmp isr_handler_stub
+    pushq $0x\index
+    jmp isr_handler_stub
 .endm
 
 # retrieve the address of an ISR stump

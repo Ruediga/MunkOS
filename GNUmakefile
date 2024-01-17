@@ -4,7 +4,7 @@ override MAKEFLAGS += -rR
 override IMAGE_NAME := image
 
 override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -cpu host -smp 8
-override EXTRA_QEMU_ARGS := -monitor stdio -d guest_errors,int -M smm=off\
+override EXTRA_QEMU_ARGS := -monitor stdio -d int,guest_errors -M smm=off\
 	-D log.txt -vga virtio
 
 # Convenience macro to reliably declare user overridable variables.

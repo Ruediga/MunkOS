@@ -1,10 +1,10 @@
 #include "limine.h"
-#include "dynmem/kheap.h"
-#include "std/macros.h"
-#include "mm/vmm.h"
-#include "mm/pmm.h"
-#include "std/memory.h"
-#include "std/kprintf.h"
+#include "kheap.h"
+#include "macros.h"
+#include "vmm.h"
+#include "pmm.h"
+#include "memory.h"
+#include "kprintf.h"
 
 uint64_t kernel_heap_max_size_pages = 0x0;
 uintptr_t kernel_heap_base_address = 0x0;

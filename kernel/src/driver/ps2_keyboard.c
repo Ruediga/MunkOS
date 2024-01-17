@@ -1,7 +1,8 @@
-#include "driver/ps2_keyboard.h"
-#include "cpu/io.h"
-#include "cpu/smp.h"
-#include "apic/ioapic.h"
+#include "ps2_keyboard.h"
+#include "io.h"
+#include "smp.h"
+#include "apic.h"
+#include "interrupt.h"
 
 #include <stdint.h>
 
@@ -33,6 +34,15 @@ void ps2_write_config(uint8_t value) {
     ps2_write(0x60, value);
 }
 
+#include "kprintf.h"
+static void ps2_kb_handler(INT_REG_INFO *regs)
+{
+    (void)regs;
+    ps2_read();
+    kprintf("He he he\n");
+    lapic_send_eoi_signal();
+}
+
 void ps2_init(void) {
     // Disable primary and secondary PS/2 ports
     ps2_write(0x64, 0xad);
@@ -56,6 +66,7 @@ void ps2_init(void) {
 
     // some random ass vector
     ps2_keyboard_vector = 0x99;
+    interrupts_register_vector(ps2_keyboard_vector, (uintptr_t)ps2_kb_handler);
     ioapic_redirect_irq(1, ps2_keyboard_vector, smp_request.response->bsp_lapic_id);
     inb(0x60);
 }

@@ -1,18 +1,13 @@
-#include "interrupt/exception.h"
-#include "std/memory.h"
+#include "memory.h"
+#include "interrupt.h"
+#include "kprintf.h"
+#include "cpu.h"
 
-// [TODO] remove
-#include "driver/ps2_keyboard.h"
-#include "limine.h"
-#include "mm/pmm.h"
-#include "mm/vmm.h"
-#include "cpu/io.h"
-#include "apic/lapic.h"
+uintptr_t handlers[256] = {0};
 
-#include "flanterm/flanterm.h"
-extern struct flanterm_context *ft_ctx;
+static k_spinlock int_register_vec_lock;
+static k_spinlock int_erase_vec_lock;
 
-#include "std/kprintf.h"
 void default_exception_handler(INT_REG_INFO *regs)
 {
     // intel sdm vol 3, 6VMM_HIGHER_HALF.1 table 6-1
@@ -87,13 +82,8 @@ void default_exception_handler(INT_REG_INFO *regs)
     case 30:
         exc_panic(regs, "Security Exception, ", 1);
         break;
-    case 0x99:
-        uint8_t input_byte = ps2_read();
-        kprintf("%lu ",  (uint64_t)input_byte);
-        lapic_send_eoi_signal();
-        break;
     default:
-        exc_panic(regs, "Unhandled Exception thrown", 0);
+        exc_panic(regs, "Unhandled Interrupt occured", 0);
     }
 
     return;
@@ -103,7 +93,7 @@ void default_exception_handler(INT_REG_INFO *regs)
 void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
 {
     // red bg
-    flanterm_write(ft_ctx, "\033[41m", 6);
+    kprintf("\033[41m");
 
     kprintf("\n[IV 0x%lX] -> ", regs->vector);
     kprintf(msg);
@@ -125,4 +115,83 @@ void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
     kprintf("EFLAGS: 0x%b\n\n", regs->eflags);
 
     for (;;) __asm__ volatile("cli\n hlt\n");
+}
+
+void empty_handler(INT_REG_INFO *regs)
+{
+    (void)regs;
+    kprintf("Unhandled interrupt occured...\n");
+    __asm__ ("hlt");
+}
+
+struct __attribute__((packed)) {
+    uint16_t size;
+    uint64_t offset;
+} idtr;
+
+__attribute__((aligned(16))) idt_descriptor idt[256];
+
+extern uint64_t isr_stub_table[];
+
+void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags) {
+    idt_descriptor *descriptor = &idt[vector];
+
+    descriptor->offset_low = isr & 0xFFFF;
+    descriptor->selector = 0x8; // 8: kernel code selector offset (gdt)
+    descriptor->ist = 0;
+    descriptor->type_attributes = flags;
+    descriptor->offset_mid = (isr >> 16) & 0xFFFF;
+    descriptor->offset_high = (isr >> 32) & 0xFFFFFFFF;
+    descriptor->reserved = 0;
+}
+
+void init_idt(void)
+{
+    for (size_t vector = 0; vector < 256; vector++) {
+        idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
+    }
+    for (size_t vector = 0; vector < 32; vector++) {
+        handlers[vector] = (uintptr_t)default_exception_handler;
+    }
+    for (size_t vector = 32; vector < 256; vector++) {
+        handlers[vector] = (uintptr_t)empty_handler;
+    }
+
+    load_idt();
+}
+
+void interrupts_register_vector(size_t vector, uintptr_t handler)
+{
+    acquire_lock(&int_register_vec_lock);
+    if (handlers[vector] != (uintptr_t)empty_handler || !handler) {
+        // panic
+        kprintf("Failed to register vector %lu at 0x%p\n", vector, handler);
+        __asm__ ("hlt");
+    }
+    handlers[vector] = handler;
+    release_lock(&int_register_vec_lock);
+}
+
+void interrupts_erase_vector(size_t vector)
+{
+    acquire_lock(&int_erase_vec_lock);
+    if (handlers[vector] == (uintptr_t)empty_handler || vector < 32) {
+        // panic
+        kprintf("Failed to erase vector %lu\n", vector);
+        __asm__ ("hlt");
+    }
+    handlers[vector] = (uintptr_t)empty_handler;
+    release_lock(&int_erase_vec_lock);
+}
+
+inline void load_idt(void)
+{
+    idtr.offset = (uintptr_t)idt;
+    // max descriptors - 1
+    idtr.size = (uint16_t)(sizeof(idt) - 1);
+
+    __asm__ volatile (
+        "lidt %0"
+        : : "m"(idtr) : "memory"
+    );
 }

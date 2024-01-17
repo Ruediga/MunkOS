@@ -1,9 +1,9 @@
-#include "std/kprintf.h"
-#include "std/memory.h"
-#include "mm/pmm.h"
-#include "mm/vmm.h"
+#include "kprintf.h"
+#include "memory.h"
+#include "pmm.h"
+#include "vmm.h"
 #include "acpi.h"
-#include "dynmem/vector.h"
+#include "vector.h"
 
 bool xsdt_present;
 

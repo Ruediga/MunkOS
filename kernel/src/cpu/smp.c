@@ -1,12 +1,14 @@
-#include "cpu/smp.h"
+#include "smp.h"
 #include "limine.h"
-#include "dynmem/liballoc.h"
-#include "std/kprintf.h"
-#include "gdt/gdt.h"
-#include "interrupt/idt.h"
-#include "mm/pmm.h"
-#include "mm/vmm.h"
-#include "cpu/cpu.h"
+#include "liballoc.h"
+#include "kprintf.h"
+#include "gdt.h"
+#include "interrupt.h"
+#include "pmm.h"
+#include "vmm.h"
+#include "cpu.h"
+#include "apic.h"
+
 
 struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
@@ -33,6 +35,8 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
 
     // [TODO] tss
 
+    init_lapic();
+
     kprintf("  - cpu %lu (lapic_id=%u) booted up\n", this_cpu->id, this_cpu->lapic_id);
     startup_checksum++;
 
@@ -58,6 +62,9 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
  * }; */
 void boot_other_cores(void)
 {
+    kprintf("%s lapic timer calibration...\n\r", kernel_okay_string);
+    init_lapic();
+
     smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;
 

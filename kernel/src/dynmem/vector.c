@@ -1,7 +1,7 @@
-#include "dynmem/vector.h"
+#include "vector.h"
 
-#include "dynmem/liballoc.h"
-#include "std/memory.h"
+#include "liballoc.h"
+#include "memory.h"
 
 // sets initial values and reserves a first sizeof(size_t) bytes big array
 void vector_init(vector *vec)

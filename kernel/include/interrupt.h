@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// handler[n] contains the, who guessed it, interrupt handler for vector n.
+extern uintptr_t handlers[256];
+
 typedef struct __attribute__((packed)) {
     // stack growns downwards hence flipped around
     uint64_t cr4;
@@ -33,3 +36,19 @@ typedef struct __attribute__((packed)) {
 
 void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code);
 void default_exception_handler(INT_REG_INFO *regs);
+
+typedef struct __attribute__((packed)) {
+    uint16_t offset_low;
+    uint16_t selector;
+    uint8_t ist;
+    uint8_t type_attributes;
+    uint16_t offset_mid;
+    uint32_t offset_high;
+    uint32_t reserved;
+} idt_descriptor;
+
+void interrupts_register_vector(size_t vector, uintptr_t handler);
+void interrupts_erase_vector(size_t vector);
+void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags);
+void init_idt(void);
+void load_idt(void);

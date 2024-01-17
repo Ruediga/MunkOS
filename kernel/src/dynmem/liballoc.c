@@ -1,6 +1,6 @@
 // LIBALLOC (v1.1	) BY https://github.com/blanham/liballoc (FREE USE)
 
-#include "dynmem/liballoc.h"
+#include "liballoc.h"
 
 /**  Durand's Amazing Super Duper Memory functions.  */
 
@@ -51,7 +51,7 @@
 #define LIBALLOC_DEAD	0xdeaddead
 
 #if defined DEBUG || defined INFO
-#include "std/kprintf.h"
+#include "kprintf.h"
 
 #define FLUSH()		__asm__ ("nop\n")//fflush( stdout )
 

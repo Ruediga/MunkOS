@@ -48,6 +48,11 @@ Currently, I prioritize work on the kernel.
 - [ ] SMP
 - [ ] Scheduler
 
+
+### TODO
+
+// [TODO] hand out interrupt vectors in a cleaner way
+
 ### Long Term Goals
 
 I want MunkOS to be a primarily dependency free OS, so replacing third party software I use for convinience during development with my own is something I intend to do at some point™.

@@ -3,26 +3,24 @@
 #include <stdbool.h>
 #include <limine.h>
 
-#include "std/memory.h"
-#include "std/kprintf.h"
-
 // flanterm terminal
 #include "flanterm/flanterm.h"
 #include "flanterm/backends/fb.h"
 
-#include "gdt/gdt.h"
-#include "interrupt/idt.h"
-#include "mm/pmm.h"
-#include "mm/vmm.h"
-#include "dynmem/kheap.h"
-#include "dynmem/liballoc.h"
-#include "acpi/acpi.h"
-#include "cpu/cpuid.h"
-#include "apic/ioapic.h"
-#include "apic/lapic.h"
-#include "cpu/smp.h"
-
-#include "driver/ps2_keyboard.h"
+#include "memory.h"
+#include "kprintf.h"
+#include "gdt.h"
+#include "interrupt.h"
+#include "pmm.h"
+#include "vmm.h"
+#include "kheap.h"
+#include "liballoc.h"
+#include "acpi.h"
+#include "apic.h"
+#include "cpu_id.h"
+#include "smp.h"
+#include "ps2_keyboard.h"
+#include "pit.h"
 
 // Set the base revision to 1, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
@@ -107,12 +105,14 @@ void kernel_entry(void)
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
     parse_acpi();
 
+    kprintf("%s setting up the ioapic...\n\r", kernel_okay_string);
+    init_ioapic();
+
+    kprintf("%s redirecting pit...\n\r", kernel_okay_string);
+    init_pit();
+
     kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
-
-    kprintf("%s setting up the ioapic...\n\r", kernel_okay_string);
-    init_lapic();
-    init_ioapic();
 
     ps2_init();
 

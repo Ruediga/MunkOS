@@ -1,23 +1,12 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
-inline void outb(uint16_t port, uint8_t value)
-{
-    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port) : "memory");
-}
+#include "kprintf.h"
+#include "acpi.h"
 
-inline uint8_t inb(uint16_t port)
-{
-    uint8_t out;
-    __asm__ volatile("inb %1, %0" : "=a"(out) : "Nd"(port) : "memory");
-    return out;
-}
-
-inline void io_wait(void)
-{
-    outb(0x80, 0);
-}
+#define DEADLOCK_MAX_ITERATIONS 100
 
 inline uint64_t read_msr(uint32_t reg)
 {
@@ -40,3 +29,12 @@ inline void write_msr(uint32_t reg, uint64_t value)
         : "memory"
     );
 }
+
+typedef struct {
+    // 0 = free, 1 = locked
+    //_Atomic(uintptr_t) lock;
+    size_t lock;
+} k_spinlock;
+
+void acquire_lock(k_spinlock *lock);
+void release_lock(k_spinlock *lock);

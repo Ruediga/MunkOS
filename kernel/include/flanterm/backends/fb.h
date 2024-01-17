@@ -34,7 +34,7 @@ extern "C" {
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "../flanterm.h"
+#include "flanterm/flanterm.h"
 
 #define FLANTERM_FB_FONT_GLYPHS 256
 

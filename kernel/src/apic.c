@@ -1,11 +1,16 @@
-#include "apic/ioapic.h"
-#include "cpu/cpu.h"
-#include "acpi/acpi.h"
-#include "mm/pmm.h"
-#include "mm/vmm.h"
-#include "std/kprintf.h"
-#include "std/macros.h"
+#include "kprintf.h"
+#include "macros.h"
+#include "kprintf.h"
+#include "pmm.h"
+#include "vmm.h"
+#include "cpu.h"
+#include "apic.h"
+#include "acpi.h"
+#include "io.h"
 
+
+// ioapic
+// ============================================================================
 // map from ISR[32 - 47]
 #define PIC_MASTER_OFFSET 0x20
 #define PIC_SLAVE_OFFSET 0x28
@@ -164,4 +169,70 @@ void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
     uint32_t table_index = (irq - ioapic->global_system_interrupt_base) * 2;
     ioapic_write(ioapic, 0x10 + table_index, entry_low);
     ioapic_write(ioapic, 0x10 + table_index + 1, entry_high);
+}
+
+// lapic
+// ============================================================================
+// sdm vol3 ch 11.4
+// 11.5: LVTs (Local Vector Tables)
+
+#define LAPIC_SPURIOUS_INT_VEC_REG 0x0F0
+#define LAPIC_EOI_REG 0x0B0
+#define LAPIC_LVT_CMCI_REG 0x2F0
+#define LAPIC_LVT_TIMER_REG 0x320
+#define LAPIC_LVT_THERMAL_MONITOR_REG 0x330
+#define LAPIC_LVT_PERF_COUNTER_REG 0x340
+#define LAPIC_LVT_LINT0_REG 0x350
+#define LAPIC_LVT_LINT1_REG 0x360
+#define LAPIC_LVT_ERROR_REG 0x370
+#define LAPIC_TIMER_INITIAL_COUNT_REG 0x380
+#define LAPIC_TIMER_CURRENT_COUNT_REG 0x390
+#define LAPIC_TIMER_DIV_CONFIG_REG 0x3E0
+
+// this gets mapped and incremented by the hhdm offset in the vmm!
+uintptr_t lapic_address = 0xFEE00000;
+
+inline uint32_t lapic_read(uint32_t reg)
+{
+    return *((volatile uint32_t *)(lapic_address + reg));
+}
+
+inline void lapic_write(uint32_t reg, uint32_t val)
+{
+    *((volatile uint32_t *)(lapic_address + reg)) = val;
+}
+
+// [TODO]
+// Panics
+// IPIs
+// Timer
+void init_lapic(void)
+{
+    // check if lapics are where they're supposed to be
+    if ((read_msr(0x1b) & 0xfffff000) != lapic_address - hhdm->offset) {
+        kprintf("ABOOOOORT %p\n");
+        __asm__ volatile ("cli\n hlt");
+    }
+
+    // enable APIC (1 << 8), spurious vector = 0xFF
+    lapic_write(LAPIC_SPURIOUS_INT_VEC_REG, lapic_read(LAPIC_SPURIOUS_INT_VEC_REG) | 0x100 | 0xFF);
+}
+
+inline void lapic_send_eoi_signal(void)
+{
+    // non zero value may cause #GP
+    lapic_write(LAPIC_EOI_REG, 0x00);
+}
+
+/*
+ * LAPIC_TIMER_INITIAL_COUNT_REG:
+ *    - 0 stops it, 
+#define LAPIC_TIMER_INITIAL_COUNT_REG 0x380
+#define LAPIC_TIMER_CURRENT_COUNT_REG 0x390
+#define LAPIC_TIMER_DIV_CONFIG_REG 0x3E0
+ *
+*/
+void init_lapic_timer(void)
+{
+
 }

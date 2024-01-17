@@ -1,7 +1,7 @@
-#include "mm/pmm.h"
-#include "std/kprintf.h"
-#include "std/memory.h"
-#include "std/macros.h"
+#include "pmm.h"
+#include "kprintf.h"
+#include "memory.h"
+#include "macros.h"
 
 // usable entries are page aligned
 struct limine_memmap_response *memmap = NULL;

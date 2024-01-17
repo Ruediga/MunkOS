@@ -27,8 +27,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "std/kprintf.h"
-#include "cpu/cpu.h"
+#include "kprintf.h"
+#include "cpu.h"
 
 const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 

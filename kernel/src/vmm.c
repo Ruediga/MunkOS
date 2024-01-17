@@ -1,9 +1,10 @@
-#include "mm/vmm.h"
-#include "mm/pmm.h"
+#include "vmm.h"
+#include "pmm.h"
 #include "limine.h"
-#include "std/kprintf.h"
-#include "std/memory.h"
-#include "cpu/cpu.h"
+#include "kprintf.h"
+#include "memory.h"
+#include "cpu.h"
+#include "apic.h"
 
 page_map_ctx kernel_pmc = { 0x0 };
 
@@ -107,7 +108,7 @@ static void init_kpm(void)
     // zero out contents of newly allocated page
     memset((void *)kernel_pmc.pml4_address, 0, PAGE_SIZE);
 
-    // [TODO] meanwhile take Lyre's approach of using linker symbols
+    // Lyre's approach of using linker symbols
     extern linker_symbol_ptr text_start_addr, text_end_addr,
         rodata_start_addr, rodata_end_addr,
         data_start_addr, data_end_addr;
@@ -126,6 +127,11 @@ static void init_kpm(void)
 
     // limine
     struct limine_kernel_address_response *ka = kernel_address_request.response;
+
+    // map lapics (src/apic/lapic.h)
+    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((lapic_address + hhdm->offset), PAGE_SIZE),
+        ALIGN_DOWN(lapic_address, PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    lapic_address += hhdm->offset;
 
     // map pmm data structures
     for (size_t off = 0; off < ALIGN_UP(pmm_total_bytes_pmm_structures, PAGE_SIZE); off += PAGE_SIZE) {

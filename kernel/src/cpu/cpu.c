@@ -1,4 +1,4 @@
-#include "cpu/cpu.h"
+#include "cpu.h"
 
 // https://gcc.gnu.org/onlinedocs/gcc-4.5.3/gcc/Atomic-Builtins.html
 
