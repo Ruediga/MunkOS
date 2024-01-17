@@ -5,9 +5,16 @@
 extern "C" {
 #endif
 
-extern const char *kernel_okay_string;
+#include "cpu.h"
 
-int kprintf(const char *, ...);
+#include <stdarg.h>
+
+extern const char *kernel_okay_string;
+// DO NOT TOUCH THIS OUTSIDE OF kpanic()
+extern k_spinlock kprintf_lock;
+
+int kprintf(const char *format, ...);
+int kvprintf(const char* format, va_list var_args);
 
 #ifdef __cplusplus
 }

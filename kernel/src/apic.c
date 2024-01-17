@@ -7,7 +7,7 @@
 #include "apic.h"
 #include "acpi.h"
 #include "io.h"
-
+#include "smp.h"
 
 // ioapic
 // ============================================================================
@@ -176,19 +176,6 @@ void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
 // sdm vol3 ch 11.4
 // 11.5: LVTs (Local Vector Tables)
 
-#define LAPIC_SPURIOUS_INT_VEC_REG 0x0F0
-#define LAPIC_EOI_REG 0x0B0
-#define LAPIC_LVT_CMCI_REG 0x2F0
-#define LAPIC_LVT_TIMER_REG 0x320
-#define LAPIC_LVT_THERMAL_MONITOR_REG 0x330
-#define LAPIC_LVT_PERF_COUNTER_REG 0x340
-#define LAPIC_LVT_LINT0_REG 0x350
-#define LAPIC_LVT_LINT1_REG 0x360
-#define LAPIC_LVT_ERROR_REG 0x370
-#define LAPIC_TIMER_INITIAL_COUNT_REG 0x380
-#define LAPIC_TIMER_CURRENT_COUNT_REG 0x390
-#define LAPIC_TIMER_DIV_CONFIG_REG 0x3E0
-
 // this gets mapped and incremented by the hhdm offset in the vmm!
 uintptr_t lapic_address = 0xFEE00000;
 
@@ -202,10 +189,18 @@ inline void lapic_write(uint32_t reg, uint32_t val)
     *((volatile uint32_t *)(lapic_address + reg)) = val;
 }
 
-// [TODO]
-// Panics
-// IPIs
-// Timer
+void ipi_handler(INT_REG_INFO *regs)
+{
+    (void)regs;
+
+    struct smp_cpu *this_cpu = (struct smp_cpu *)read_kernel_gs_base();
+    kprintf("Halting core %u\n", this_cpu->id);
+
+    __asm__ ("cli\n hlt");
+}
+
+static k_spinlock lapic_init_lock;
+size_t lapic_vectors_are_registered = 0;
 void init_lapic(void)
 {
     // check if lapics are where they're supposed to be
@@ -213,6 +208,14 @@ void init_lapic(void)
         kprintf("ABOOOOORT %p\n");
         __asm__ volatile ("cli\n hlt");
     }
+
+    acquire_lock(&lapic_init_lock);
+    if (!lapic_vectors_are_registered) {
+        lapic_vectors_are_registered = 1;
+        interrupts_register_vector(254, (uintptr_t)ipi_handler);
+        interrupts_register_vector(0xFF, (uintptr_t)default_exception_handler);
+    }
+    release_lock(&lapic_init_lock);
 
     // enable APIC (1 << 8), spurious vector = 0xFF
     lapic_write(LAPIC_SPURIOUS_INT_VEC_REG, lapic_read(LAPIC_SPURIOUS_INT_VEC_REG) | 0x100 | 0xFF);
@@ -235,4 +238,37 @@ inline void lapic_send_eoi_signal(void)
 void init_lapic_timer(void)
 {
 
+}
+
+void lapic_send_ipi(uint32_t lapic_id, uint32_t vector, enum LAPIC_ICR_DEST dest)
+{
+    uint32_t icr_low = lapic_read(LAPIC_ICR_REG_LOW), icr_high;
+
+    while (icr_low & (LAPIC_ICR_PENDING << 12))
+        __asm__ ("pause");
+
+    icr_low = lapic_read(LAPIC_ICR_REG_LOW) & 0xFFF32000; // clear everything
+    icr_high = lapic_read(LAPIC_ICR_REG_HIGH) & 0x00FFFFFF; // clear del field
+
+    switch (dest)
+    {
+    case ICR_DEST_ALL:
+        lapic_write(LAPIC_ICR_REG_HIGH, icr_high);
+        lapic_write(LAPIC_ICR_REG_LOW, icr_low | (dest << 18) | vector);
+        break;
+    case ICR_DEST_OTHERS:
+        lapic_write(LAPIC_ICR_REG_HIGH, icr_high);
+        lapic_write(LAPIC_ICR_REG_LOW, icr_low | (dest << 18) | vector);
+        break;
+    case ICR_DEST_SELF:
+        lapic_write(LAPIC_ICR_REG_HIGH, icr_high);
+        lapic_write(LAPIC_ICR_REG_LOW, icr_low | (dest << 18) | vector);
+        break;
+    case ICR_DEST_FIELD:
+        lapic_write(LAPIC_ICR_REG_HIGH, icr_high | (lapic_id << 24));
+        lapic_write(LAPIC_ICR_REG_LOW, icr_low | (dest << 18) | vector);
+        break;
+    default:
+        kprintf("<lapic_send_ipi> Unknown Destination\n");
+    }
 }

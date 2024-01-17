@@ -1,5 +1,8 @@
 #include "cpu.h"
 
+#include "kprintf.h"
+#include "acpi.h"
+
 // https://gcc.gnu.org/onlinedocs/gcc-4.5.3/gcc/Atomic-Builtins.html
 
 void acquire_lock(k_spinlock *lock) {

@@ -2,6 +2,19 @@
 .extern handlers
 
 isr_handler_stub:
+    # SS and SP for stack switch obtained from TSS
+    # SS and SP of interrupted procedure get pushed onto new stack
+    # (no privilege lvl change doesn't push these two)
+    # EFLAGS
+    # CS
+    # EIP
+    # Error Code
+    # (manually push vector)
+    cmpq $0x8, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
+    je 1f
+    swapgs
+
+1:
     pushq %rdi
     pushq %rsi
     pushq %rbp
@@ -58,6 +71,11 @@ isr_handler_stub:
     # Clean up pushed error code and interrupt number from stack
     addq $16, %rsp
 
+    cmpq $0x8, 24(%rsp)
+    je 1f
+    swapgs
+
+1:
     sti
     # Pop other flags and return to normal execution State
     iretq

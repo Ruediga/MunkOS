@@ -2,102 +2,64 @@
 #include "interrupt.h"
 #include "kprintf.h"
 #include "cpu.h"
+#include "apic.h"
+
+#include <stdarg.h>
 
 uintptr_t handlers[256] = {0};
 
 static k_spinlock int_register_vec_lock;
 static k_spinlock int_erase_vec_lock;
 
+static const char * cpu_exception_strings[32] = {
+    "Division by Zero",
+    "Debug",
+    "Non-Maskable-Interrupt",
+    "Breakpoint",
+    "Overflow",
+    "Bound Range Exceeded",
+    "Invalid opcode",
+    "Device (FPU) not available",
+    "Double Fault",
+    "RESERVED VECTOR",
+    "Invalid TSS, ",
+    "Segment not present, ",
+    "Stack Segment Fault, ",
+    "General Protection Fault, ",
+    "Page Fault, ",
+    "RESERVED VECTOR",
+    "x87 FP Exception",
+    "Alignment Check, ",
+    "Machine Check (Internal Error)",
+    "SIMD FP Exception",
+    "Virtualization Exception",
+    "Control  Protection Exception, ",
+    "RESERVED VECTOR",
+    "RESERVED VECTOR",
+    "RESERVED VECTOR",
+    "RESERVED VECTOR",
+    "RESERVED VECTOR",
+    "RESERVED VECTOR",
+    "Hypervisor Injection Exception",
+    "VMM Communication Exception, ",
+    "Security Exception, ",
+    "RESERVED VECTOR"
+};
+
 void default_exception_handler(INT_REG_INFO *regs)
 {
-    // intel sdm vol 3, 6VMM_HIGHER_HALF.1 table 6-1
-    switch (regs->vector)
-    {
-    case 0:
-        exc_panic(regs, "Division by Zero", 0);
-        break;
-    case 1:
-        exc_panic(regs, "Debug", 0);
-        break;
-    case 2:
-        exc_panic(regs, "Non-Maskable-Interrupt", 0);
-        break;
-    case 3:
-        exc_panic(regs, "Breakpoint", 0);
-        break;
-    case 4:
-        exc_panic(regs, "Overflow", 0);
-        break;
-    case 5:
-        exc_panic(regs, "Bound Range Exceeded", 0);
-        break;
-    case 6:
-        exc_panic(regs, "Invalid opcode", 0);
-        break;
-    case 7:
-        exc_panic(regs, "Device (FPU) not available", 0);
-        break;
-    case 8:
-        exc_panic(regs, "Double Fault", 0);
-        break;
-    case 10:
-        exc_panic(regs, "Invalid TSS, ", 1);
-        break;
-    case 11:
-        exc_panic(regs, "Segment not present, ", 1);
-        break;
-    case 12:
-        exc_panic(regs, "Stack Segment Fault, ", 1);
-        break;
-    case 13:
-        exc_panic(regs, "General Protection Fault, ", 1);
-        break;
-    case 14:
-        exc_panic(regs, "Page Fault, ", 1);
-        break;
-    case 16:
-        exc_panic(regs, "x87 FP Exception", 0);
-        break;
-    case 17:
-        exc_panic(regs, "Alignment Check, ", 1);
-        break;
-    case 18:
-        exc_panic(regs, "Machine Check (Internal Error)", 0);
-        break;
-    case 19:
-        exc_panic(regs, "SIMD FP Exception", 0);
-        break;
-    case 20:
-        exc_panic(regs, "Virtualization Exception", 0);
-        break;
-    case 21:
-        exc_panic(regs, "Control  Protection Exception, ", 1);
-        break;
-    case 28:
-        exc_panic(regs, "Hypervisor Injection Exception", 0);
-        break;
-    case 29:
-        exc_panic(regs, "VMM Communication Exception, ", 1);
-        break;
-    case 30:
-        exc_panic(regs, "Security Exception, ", 1);
-        break;
-    default:
-        exc_panic(regs, "Unhandled Interrupt occured", 0);
-    }
-
+    kpanic(regs, 0, "default_exception_handler called\n");
     return;
 }
 
 // cpu exception panic
-void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
+void exc_panic(INT_REG_INFO *regs)
 {
-    // red bg
-    kprintf("\033[41m");
+    kprintf("\n[IV 0x%lX] -> %s", regs->vector, cpu_exception_strings[regs->vector]);
 
-    kprintf("\n[IV 0x%lX] -> ", regs->vector);
-    kprintf(msg);
-    print_error_code ? kprintf("[ec 0x%lX]:\n\r", regs->error_code) : kprintf(":\n\r");
+    if (regs->vector == 8 || regs->vector == 10 || regs->vector == 11 || regs->vector == 12
+        || regs->vector == 13 || regs->vector == 14 || regs->vector == 17 || regs->vector == 30)
+        kprintf("[ec 0x%lX]:\n\r", regs->error_code);
 
     kprintf("rdi: 0x%p   rsi: 0x%p   rbp: 0x%p   rsp: 0x%p\
 \nrbx: 0x%p   rdx: 0x%p   rcx: 0x%p   rax: 0x%p\n",
@@ -113,8 +75,29 @@ void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code)
         regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
     kprintf("EFLAGS: 0x%b\n\n", regs->eflags);
+}
 
-    for (;;) __asm__ volatile("cli\n hlt\n");
+// kernel panic
+void kpanic(INT_REG_INFO *regs, uint8_t quiet, const char *format, ...)
+{
+    (void)quiet;
+
+    release_lock(&kprintf_lock); // kprintf may be locked
+
+    kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
+    if (regs) {
+        exc_panic(regs);
+    }
+
+    va_list args;
+    va_start(args, format);
+    kvprintf(format, args);
+    va_end(args);
+
+    // halt other cores
+    lapic_send_ipi(0, 254, ICR_DEST_OTHERS);
+
+    __asm__ ("cli\n hlt");
 }
 
 void empty_handler(INT_REG_INFO *regs)

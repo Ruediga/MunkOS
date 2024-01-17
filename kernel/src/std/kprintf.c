@@ -22,7 +22,6 @@
  * SOFTWARE.
  */
 
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -56,7 +55,7 @@ const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
-static k_spinlock kprintf_lock;
+k_spinlock kprintf_lock;
 static inline void putc_(char c)
 {
     flanterm_write(ft_ctx, &c, 1);
@@ -226,9 +225,19 @@ static void _ntoa_long(int *total, unsigned long value, bool negative, unsigned 
 
 int kprintf(const char *format, ...)
 {
-    acquire_lock(&kprintf_lock);
     va_list var_args;
     va_start(var_args, format);
+
+    int ret = kvprintf(format, var_args);
+
+    va_end(var_args);
+
+    return ret;
+}
+
+int kvprintf(const char* format, va_list var_args)
+{
+    acquire_lock(&kprintf_lock);
 
     int total_chars_printed = 0;
     unsigned int flags = 0, width = 0, precision = 0;
@@ -526,8 +535,6 @@ int kprintf(const char *format, ...)
             break;
         }
     }
-
-    va_end(var_args);
 
     release_lock(&kprintf_lock);
 

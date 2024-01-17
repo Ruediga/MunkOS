@@ -3,9 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "kprintf.h"
-#include "acpi.h"
-
 #define DEADLOCK_MAX_ITERATIONS 100
 
 inline uint64_t read_msr(uint32_t reg)
@@ -28,6 +25,33 @@ inline void write_msr(uint32_t reg, uint64_t value)
         : "a"((uint32_t)value), "d"((uint32_t)(value >> 32)), "c"(reg)
         : "memory"
     );
+}
+
+// fs base
+inline void write_fs_base(uintptr_t address) {
+    write_msr(0xc0000100, address);
+}
+
+inline uintptr_t read_fs_base() {
+    return read_msr(0xc0000100);
+}
+
+// gs base
+inline void write_gs_base(uintptr_t address) {
+    write_msr(0xc0000101, address);
+}
+
+inline uintptr_t read_gs_base() {
+    return read_msr(0xc0000101);
+}
+
+// kernel gs base
+inline void write_kernel_gs_base(uintptr_t address) {
+    write_msr(0xc0000102, address);
+}
+
+inline uintptr_t read_kernel_gs_base() {
+    return read_msr(0xc0000102);
 }
 
 typedef struct {

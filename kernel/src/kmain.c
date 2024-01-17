@@ -118,6 +118,8 @@ void kernel_entry(void)
 
     kprintf("\n\rDone...");
 
+    kpanic(NULL, 0, "Panic test %lu\n", 123456789ul);
+
     __asm__ volatile (
         "idle:\n"
         "sti\n"

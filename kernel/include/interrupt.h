@@ -34,7 +34,7 @@ typedef struct __attribute__((packed)) {
     uint64_t error_code;
 } INT_REG_INFO;
 
-void exc_panic(INT_REG_INFO *regs, const char *msg, size_t print_error_code);
+void exc_panic(INT_REG_INFO *regs);
 void default_exception_handler(INT_REG_INFO *regs);
 
 typedef struct __attribute__((packed)) {
@@ -52,3 +52,4 @@ void interrupts_erase_vector(size_t vector);
 void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags);
 void init_idt(void);
 void load_idt(void);
+void kpanic(INT_REG_INFO *regs, uint8_t quiet, const char *format, ...);

@@ -9,7 +9,6 @@
 #include "cpu.h"
 #include "apic.h"
 
-
 struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
     .revision = 0,
@@ -32,6 +31,8 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
     load_idt();
 
     vmm_set_ctx(&kernel_pmc);
+
+    write_kernel_gs_base((uintptr_t)this_cpu);
 
     // [TODO] tss
 

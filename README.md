@@ -1,18 +1,16 @@
 # MunkOS
 
-Operating System very early on in development for learning purposes with simplicity in mind.
+Future Operating System very early on in development for learning purposes with simplicity in mind.
 
-Currently, MunkOS only contains a kernel (with very minimal features), supports the x86_64 architecture, and boots with the Limine Bootloader.
+Currently, MunkOS only consists of a kernel (with very minimal functionality), supports the x86_64 architecture, and boots with the Limine Bootloader.
 
 # Building
 
-[TODO] finish list, script for cross compiler toolchain?
-
-You're going to have the least problems using Linux distro like Arch (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, apk, ...):
+You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, apk, ...):
 
 > sudo pacman -S gcc build-essential make xorriso gdisk mtools
 
-The following MAKE-targets build the image / iso and run qemu
+The following make-targets build the image / iso and run qemu
 
 ```sh
 run-iso-bios
@@ -21,7 +19,7 @@ run-img-bios
 run-img-uefi
 ```
 
-If it crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (cpuid leaf 0x1: family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
+If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
 
 ### Third party software
 
@@ -33,7 +31,7 @@ If it crashes or something doesn't work for you when testing on real hardware, a
 
 Currently, I prioritize work on the kernel.
 
-### Architecture stuff and basic initialization
+### Kernel
 
 - [x] PMM
 - [x] VMM
@@ -51,8 +49,14 @@ Currently, I prioritize work on the kernel.
 
 ### TODO
 
-// [TODO] hand out interrupt vectors in a cleaner way
+avoid breaking stuff
 
 ### Long Term Goals
 
 I want MunkOS to be a primarily dependency free OS, so replacing third party software I use for convinience during development with my own is something I intend to do at some point™.
+
+<blockquote style="border-left: 0.5em solid rgb(30,144,255);
+    padding: 1em; font-size: 1.1em;">
+    <p style="font-style: italic">"The SDM knows the answer to everything."</p>
+    <footer style="color: rgb(30,144,255); text-align: right;">- A wise man</footer>
+</blockquote>
