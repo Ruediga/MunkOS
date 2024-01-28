@@ -8,12 +8,13 @@
 #include "acpi.h"
 #include "io.h"
 #include "smp.h"
+#include "pit.h"
+
+static uint64_t calibration_probe_count, calibration_timer_start, calibration_timer_end;
 
 // ioapic
 // ============================================================================
 // map from ISR[32 - 47]
-#define PIC_MASTER_OFFSET 0x20
-#define PIC_SLAVE_OFFSET 0x28
 
 /*
  * -> Basics:
@@ -122,8 +123,7 @@ uint32_t ioapic_read(struct acpi_ioapic *ioapic, uint32_t reg)
     return *(volatile uint32_t *)((uintptr_t)ioapic->io_apic_address + hhdm->offset + 0x10);
 }
 
-// route irq to vector on lapic, note: make sure args don't contain clutter
-void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
+void ioapic_set_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id, bool unset)
 {
     uint16_t iso_flags = 0;
     for (size_t i = 0; i < iso_count; i++) {
@@ -144,8 +144,7 @@ void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
         }
     }
     if (!ioapic) {
-        kprintf("IRQL %u isn't mapped to any IOAPIC!\n", (uint64_t)irq);
-        __asm__ volatile("cli\n hlt");
+        kpanic(NULL, "IRQL %u isn't mapped to any IOAPIC!\n", (uint64_t)irq);
     }
 
     uint32_t entry_high = lapic_id << (56 - 32);
@@ -165,10 +164,24 @@ void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
     // entry |= 1ul << 11 // 0 = lapic id, 1 = logical mode
     // also stay with FIXED DELMOD
 
-    // should work with multiple ioapics
+    if (unset) {
+        entry_low = 0;
+        entry_high = 0;
+    }
     uint32_t table_index = (irq - ioapic->global_system_interrupt_base) * 2;
     ioapic_write(ioapic, 0x10 + table_index, entry_low);
     ioapic_write(ioapic, 0x10 + table_index + 1, entry_high);
+}
+
+// route irq to vector on lapic
+void ioapic_redirect_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id)
+{
+    ioapic_set_irq(irq, vector, lapic_id, 0);
+}
+
+void ioapic_remove_irq(uint32_t irq, uint32_t lapic_id)
+{
+    ioapic_set_irq(irq, 0, lapic_id, 1);
 }
 
 // lapic
@@ -189,36 +202,35 @@ inline void lapic_write(uint32_t reg, uint32_t val)
     *((volatile uint32_t *)(lapic_address + reg)) = val;
 }
 
-void ipi_handler(INT_REG_INFO *regs)
+void ipi_handler(cpu_ctx_t *regs)
 {
     (void)regs;
+    __asm__ ("cli");
 
-    struct smp_cpu *this_cpu = (struct smp_cpu *)read_kernel_gs_base();
-    kprintf("Halting core %u\n", this_cpu->id);
+    struct cpu *this_cpu = get_this_cpu();
+    kprintf(", %u", this_cpu->id);
 
-    __asm__ ("cli\n hlt");
+    __asm__ ("hlt");
 }
 
-static k_spinlock lapic_init_lock;
 size_t lapic_vectors_are_registered = 0;
 void init_lapic(void)
 {
     // check if lapics are where they're supposed to be
     if ((read_msr(0x1b) & 0xfffff000) != lapic_address - hhdm->offset) {
-        kprintf("ABOOOOORT %p\n");
-        __asm__ volatile ("cli\n hlt");
+        kpanic(NULL, "LAPIC PA doesn't match\n");
     }
 
-    acquire_lock(&lapic_init_lock);
     if (!lapic_vectors_are_registered) {
         lapic_vectors_are_registered = 1;
-        interrupts_register_vector(254, (uintptr_t)ipi_handler);
-        interrupts_register_vector(0xFF, (uintptr_t)default_exception_handler);
+        interrupts_register_vector(INT_VEC_LAPIC_TIMER, (uintptr_t)lapic_timer_handler);
+        interrupts_register_vector(INT_VEC_LAPIC_IPI, (uintptr_t)ipi_handler);
+        interrupts_register_vector(INT_VEC_SPURIOUS, (uintptr_t)default_interrupt_handler);
     }
-    release_lock(&lapic_init_lock);
-
     // enable APIC (1 << 8), spurious vector = 0xFF
     lapic_write(LAPIC_SPURIOUS_INT_VEC_REG, lapic_read(LAPIC_SPURIOUS_INT_VEC_REG) | 0x100 | 0xFF);
+
+    calibrate_lapic_timer();
 }
 
 inline void lapic_send_eoi_signal(void)
@@ -227,17 +239,107 @@ inline void lapic_send_eoi_signal(void)
     lapic_write(LAPIC_EOI_REG, 0x00);
 }
 
+static void calibrate_lapic_timer_pit_callback(cpu_ctx_t *regs)
+{
+    (void)regs;
+    uint32_t lapic_tmr_count = lapic_read(LAPIC_TIMER_CURRENT_COUNT_REG);
+
+	calibration_probe_count++;
+
+	if (calibration_probe_count == 1) {
+        // start
+		calibration_timer_start = lapic_tmr_count;
+	}
+	else if (calibration_probe_count == LAPIC_TIMER_CALIBRATION_PROBES) {
+        // end
+		calibration_timer_end = lapic_tmr_count;
+	}
+    lapic_send_eoi_signal();
+}
+
 /*
  * LAPIC_TIMER_INITIAL_COUNT_REG:
- *    - 0 stops it, 
-#define LAPIC_TIMER_INITIAL_COUNT_REG 0x380
-#define LAPIC_TIMER_CURRENT_COUNT_REG 0x390
-#define LAPIC_TIMER_DIV_CONFIG_REG 0x3E0
+ *    - 0 stops it,
  *
 */
-void init_lapic_timer(void)
+void calibrate_lapic_timer(void)
 {
+    lapic_write(LAPIC_TIMER_CURRENT_COUNT_REG, 0);
 
+    // div: 1
+    uint32_t reg_old = lapic_read(LAPIC_TIMER_DIV_CONFIG_REG);
+    lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, reg_old | 0b1011);
+
+    // mask lapic timer interrupt vector
+    reg_old = lapic_read(LAPIC_LVT_TIMER_REG);
+    lapic_write(LAPIC_LVT_TIMER_REG, LAPIC_TIMER_LVTTR_MASKED);
+
+    // start timer
+    lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, 0xFFFFFFFF);
+
+    calibration_probe_count = 0;
+
+    pit_rate_init(LAPIC_TIMER_CALIBRATION_FREQ);
+    ioapic_redirect_irq(0, INT_VEC_GENERAL_PURPOSE, get_this_cpu()->lapic_id);
+    interrupts_register_vector(INT_VEC_GENERAL_PURPOSE, (uintptr_t)calibrate_lapic_timer_pit_callback);
+    __asm__ ("sti");
+
+    while (calibration_probe_count < LAPIC_TIMER_CALIBRATION_PROBES) {
+        __asm__ ("pause");
+    }
+
+    __asm__ ("cli");
+
+    ioapic_remove_irq(0, get_this_cpu()->lapic_id);
+    interrupts_erase_vector(INT_VEC_GENERAL_PURPOSE);
+
+    // calculate apic bus frequency
+    uint64_t timer_delta = calibration_timer_start - calibration_timer_end;
+
+    get_this_cpu()->lapic_clock_frequency = (timer_delta / LAPIC_TIMER_CALIBRATION_PROBES - 1) * LAPIC_TIMER_CALIBRATION_FREQ;
+}
+
+void lapic_timer_handler(cpu_ctx_t *regs)
+{
+    (void)regs;
+struct cpu *this_cpu = get_this_cpu();
+    kprintf("oneshot signal at cpu %lu\n", this_cpu->id);
+    (void)this_cpu;
+
+    lapic_send_eoi_signal();
+}
+
+void lapic_timer_periodic(size_t vector, size_t freq)
+{
+    struct cpu *this_cpu = get_this_cpu();
+    uint32_t count_per_tick = this_cpu->lapic_clock_frequency / freq;
+
+    // unmask
+    lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, 0b1011);
+	lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, count_per_tick);
+	lapic_write(LAPIC_LVT_TIMER_REG, vector | LAPIC_TIMER_LVTTR_PERIODIC);
+}
+
+// send an interrupt in n us (max 4000000)
+void lapic_timer_oneshot_us(size_t vector, size_t us)
+{
+    struct cpu *this_cpu = get_this_cpu();
+    uint32_t ticks_per_us = this_cpu->lapic_clock_frequency / 1000000ul;
+
+    lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, 0b1011);
+	lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, ticks_per_us * us);
+	lapic_write(LAPIC_LVT_TIMER_REG, vector | LAPIC_TIMER_LVTTR_ONESHOT);
+}
+
+// send an interrupt in n ms (max: 500000)
+void lapic_timer_oneshot_ms(size_t vector, size_t ms)
+{
+    struct cpu *this_cpu = get_this_cpu();
+    uint32_t ticks_per_ms = this_cpu->lapic_clock_frequency / 1000ul / 128ul;
+
+    lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, 0b1010);
+	lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, ticks_per_ms * ms);
+	lapic_write(LAPIC_LVT_TIMER_REG, vector | LAPIC_TIMER_LVTTR_ONESHOT);
 }
 
 void lapic_send_ipi(uint32_t lapic_id, uint32_t vector, enum LAPIC_ICR_DEST dest)

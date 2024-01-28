@@ -55,7 +55,7 @@ const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
-k_spinlock kprintf_lock;
+k_spinlock_t kprintf_lock;
 static inline void putc_(char c)
 {
     flanterm_write(ft_ctx, &c, 1);

@@ -3,10 +3,8 @@
 #include <stdbool.h>
 #include <limine.h>
 
-// flanterm terminal
 #include "flanterm/flanterm.h"
 #include "flanterm/backends/fb.h"
-
 #include "memory.h"
 #include "kprintf.h"
 #include "gdt.h"
@@ -21,54 +19,46 @@
 #include "smp.h"
 #include "ps2_keyboard.h"
 #include "pit.h"
-
-// Set the base revision to 1, this is recommended as this is the latest
-// base revision described by the Limine boot protocol specification.
-// See specification for further info.
+#include "scheduler.h"
 
 LIMINE_BASE_REVISION(1)
-
-// The Limine requests can be placed anywhere, but it is important that
-// the compiler does not optimise them away, so, in C, they should
-// NOT be made "static".
 
 struct limine_framebuffer_request framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0
 };
 
-// Halt and catch fire function.
-void hcf(void)
+struct cpuid_data_common cpuid_data = {};
+struct flanterm_context *ft_ctx;
+
+extern volatile size_t pit_ticks;
+void test_thread(void)
 {
-    __asm__ ("cli");
-    for (;;)
-    {
-        __asm__ ("hlt");
+    while (1) {
+        if ((pit_ticks % 1000))
+            kprintf("1 sec passed %lu\n", pit_ticks);
     }
+
+    wait_for_scheduling();
 }
 
-// global cpuid data
-struct cpuid_data_common cpuid_data = {};
+void test_thread2(void)
+{
+    while (1) {
+        if ((pit_ticks % 1000))
+            kprintf("1 sec passed here too %lu\n", pit_ticks);
+    }
 
-// global flanterm context
-struct flanterm_context *ft_ctx;
+    wait_for_scheduling();
+}
 
 void kernel_entry(void)
 {
-    // Ensure the bootloader actually understands our base revision (see spec).
-    if (LIMINE_BASE_REVISION_SUPPORTED == false) {
-        hcf();
+    if (LIMINE_BASE_REVISION_SUPPORTED == false || framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
+        __asm__ volatile ("hlt");
     }
 
-    // Ensure we got a framebuffer.
-    if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
-        hcf();
-    }
-
-    // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
-
-    __asm__ volatile("cli");
 
     // flanterm (https://github.com/mintsuki/flanterm)
     ft_ctx = flanterm_fb_simple_init(
@@ -108,22 +98,22 @@ void kernel_entry(void)
     kprintf("%s setting up the ioapic...\n\r", kernel_okay_string);
     init_ioapic();
 
-    kprintf("%s redirecting pit...\n\r", kernel_okay_string);
-    init_pit();
+    kprintf("%s scheduling initialized...\n\r", kernel_okay_string);
+    init_scheduling();
 
     kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
 
+    //kpanic(NULL, "Panic test %lu\n", 123456789ul);
+
+    kprintf("%s redirecting pit...\n\r", kernel_okay_string);
+    init_pit();
+
     ps2_init();
 
-    kprintf("\n\rDone...");
+    scheduler_add_kernel_thread(test_thread);
+    scheduler_add_kernel_thread(test_thread2);
 
-    kpanic(NULL, 0, "Panic test %lu\n", 123456789ul);
-
-    __asm__ volatile (
-        "idle:\n"
-        "sti\n"
-        "hlt\n"
-        "jmp idle\n"
-    );
+    kprintf("bsp core waiting\n");
+    wait_for_scheduling();
 }

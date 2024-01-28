@@ -95,7 +95,7 @@ void rld_gdt()
         "push %%rax\n"
         "lretq\n"
         "1:\n"
-        "mov $0x10, %%ax\n" // 10: offset kernel data 64 bit
+        "mov $0x10, %%ax\n" // 16: offset kernel data 64 bit
         "mov %%ax, %%ds\n"
         "mov %%ax, %%es\n"
         "mov %%ax, %%fs\n"

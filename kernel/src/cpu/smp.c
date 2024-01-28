@@ -16,29 +16,38 @@ struct limine_smp_request smp_request = {
 };
 
 struct limine_smp_response *smp_response = NULL;
-struct smp_cpu *global_cpus = NULL; // store cpu data for each booted cpu
+struct cpu *global_cpus = NULL; // store cpu data for each booted cpu
 uint64_t smp_cpu_count = 0;
 
-static volatile size_t startup_checksum = 1;
+static volatile size_t startup_checksum = 0;
 
-k_spinlock somelock;
+k_spinlock_t somelock;
 
 static void processor_core_entry(struct limine_smp_info *smp_info)
 {
-    struct smp_cpu *this_cpu = (struct smp_cpu *)smp_info->extra_argument;
+    struct cpu *this_cpu = (struct cpu *)smp_info->extra_argument;
 
     rld_gdt();
     load_idt();
 
     vmm_set_ctx(&kernel_pmc);
 
-    write_kernel_gs_base((uintptr_t)this_cpu);
-
     // [TODO] tss
+    thread_t *idle_thread = kmalloc(sizeof(thread_t));
+    idle_thread->cpu = this_cpu;
+    idle_thread->owner = kernel_task;
 
+    this_cpu->idle_thread = idle_thread;
+
+    write_gs_base((uintptr_t)idle_thread);
+    write_kernel_gs_base((uintptr_t)idle_thread);
+
+    acquire_lock(&somelock);
     init_lapic();
+    release_lock(&somelock);
 
-    kprintf("  - cpu %lu (lapic_id=%u) booted up\n", this_cpu->id, this_cpu->lapic_id);
+    kprintf("  - cpu %lu: lapic_id=%u, bus_frequency=%luMHz booted up\n",
+        this_cpu->id, this_cpu->lapic_id, this_cpu->lapic_clock_frequency / 1000000);
     startup_checksum++;
 
     // if main cpu, return to normal execution
@@ -46,12 +55,7 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
         return;
     }
 
-    __asm__ volatile (
-        "idle:\n"
-        "sti\n"
-        "hlt\n"
-        "jmp idle\n"
-    );
+    wait_for_scheduling();
 }
 
 /* struct limine_smp_info {
@@ -63,13 +67,10 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
  * }; */
 void boot_other_cores(void)
 {
-    kprintf("%s lapic timer calibration...\n\r", kernel_okay_string);
-    init_lapic();
-
     smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;
 
-    global_cpus = kmalloc(sizeof(struct smp_cpu) * smp_cpu_count);
+    global_cpus = kmalloc(sizeof(struct cpu) * smp_cpu_count);
 
     for (size_t i = 0; i < smp_cpu_count; i++) {
         struct limine_smp_info *smp_info = smp_response->cpus[i];
@@ -86,7 +87,7 @@ void boot_other_cores(void)
         smp_info->goto_address = processor_core_entry;
     }
 
-    while (startup_checksum != smp_cpu_count)
+    while (startup_checksum < smp_cpu_count)
         __asm__ ("pause");
 
     kprintf("  - successfully booted up all %lu cores\n", smp_cpu_count);

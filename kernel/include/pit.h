@@ -8,7 +8,6 @@
 // !!! min. rate = 19Hz
 #define PIT_INT_FREQUENCY 1000
 
-void pit_rate_init(uint16_t value);
+void pit_rate_init(size_t freq);
 uint16_t pit_read_current(void);
-void pit_reset_to_default(void);
 void init_pit(void);

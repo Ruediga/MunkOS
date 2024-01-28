@@ -4,6 +4,7 @@
 #include "vmm.h"
 #include "acpi.h"
 #include "vector.h"
+#include "interrupt.h"
 
 bool xsdt_present;
 
@@ -20,9 +21,9 @@ struct limine_rsdp_request rsdp_request = {
     .revision = 0
 };
 
-static vector vec_ioapic;
-static vector vec_lapic;
-static vector vec_iso;
+static vector_t vec_ioapic;
+static vector_t vec_lapic;
+static vector_t vec_iso;
 
 // these need to hold addresses of vector->data!
 struct acpi_ioapic *ioapics;
@@ -48,8 +49,7 @@ static bool validate_table(struct acpi_sdt_header *table_header)
 void parse_acpi(void)
 {
     if (rsdp_request.response == NULL || rsdp_request.response->address == NULL) {
-        kprintf("ACPI is not supported\n");
-        __asm__ volatile("cli\n hlt");
+        kpanic(NULL, "ACPI is not supported\n");
     }
 
     rsdp_ptr = rsdp_request.response->address;
@@ -61,8 +61,7 @@ void parse_acpi(void)
     rsdt_ptr = xsdt_present ? (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
         : (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
     if (rsdt_ptr == NULL) {
-        kprintf("ACPI is not supported\n");
-        __asm__ volatile("cli\n hlt");
+        kpanic(NULL, "ACPI is not supported\n");
     }
     vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
         ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
@@ -78,17 +77,15 @@ void parse_acpi(void)
     }
 
     if (!(fadt_ptr = get_sdt("FACP")) || !validate_table(&fadt_ptr->header)) {
-        kprintf("FADT not found\n");
-        __asm__ volatile("cli\n hlt");
+        kpanic(NULL, "FADT not found\n");
     }
     if (!(madt_ptr = get_sdt("APIC")) || !validate_table(&madt_ptr->header)) {
-        kprintf("MADT not found\n");
-        __asm__ volatile("cli\n hlt");
+        kpanic(NULL, "MADT not found\n");
     }
 
-    vector_init(&vec_lapic);
-    vector_init(&vec_ioapic);
-    vector_init(&vec_iso);
+    vector_init(&vec_lapic, sizeof(vec_lapic));
+    vector_init(&vec_ioapic, sizeof(vec_ioapic));
+    vector_init(&vec_iso, sizeof(vec_iso));
     parse_madt(madt_ptr);
     lapics = (struct acpi_lapic *)vec_lapic.data;
     ioapics = (struct acpi_ioapic *)vec_ioapic.data;
@@ -122,17 +119,17 @@ void parse_madt(struct acpi_madt *madt)
         struct acpi_madt_header *madt_hdr = (struct acpi_madt_header *)(madt->entries + off);
         if (madt_hdr->lcst_id == MADT_ENTRY_PROCESSOR_LAPIC) {
             // lapic
-            vector_append(&vec_lapic, madt_hdr, madt_hdr->length);
+            vector_append(&vec_lapic, madt_hdr);
             lapic_count++;
         }
         else if (madt_hdr->lcst_id == MADT_ENTRY_IO_APIC) {
             // ioapic
-            vector_append(&vec_ioapic, madt_hdr, madt_hdr->length);
+            vector_append(&vec_ioapic, madt_hdr);
             ioapic_count++;
         }
         else if (madt_hdr->lcst_id == MADT_ENTRY_INTERRUPT_SOURCE_OVERRIDE) {
             // iso
-            vector_append(&vec_iso, madt_hdr, madt_hdr->length);
+            vector_append(&vec_iso, madt_hdr);
             iso_count++;
         }
 
@@ -141,7 +138,6 @@ void parse_madt(struct acpi_madt *madt)
 
     kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapic_count, lapic_count);
     if (ioapic_count == 0) {
-        kprintf("Systems without an IOAPIC are not supported!\n");
-        __asm__ volatile ("cli\n hlt");
+        kpanic(NULL, "Systems without an IOAPIC are not supported!\n");
     }
 }

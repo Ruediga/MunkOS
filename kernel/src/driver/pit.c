@@ -48,11 +48,12 @@
  *     reload – it starts decrementing on the next input clock pulse. 
 */
 // channel 0 mode 2, rate = Hz
-void pit_rate_init(uint16_t value)
+void pit_rate_init(size_t freq)
 {
+    uint16_t reload_value = (uint16_t)DIV_ROUNDUP(PIT_OSCILLATOR_FREQUENCY, freq);
     outb(0x43, 0b00110100); // command register
-    outb(0x40, (uint8_t)value); // low first
-    outb(0x40, (uint8_t)(value >> 8)); // high after
+    outb(0x40, (uint8_t)reload_value); // low first
+    outb(0x40, (uint8_t)(reload_value >> 8)); // high after
 }
 
 uint16_t pit_read_current(void)
@@ -63,26 +64,22 @@ uint16_t pit_read_current(void)
     return count | ((uint16_t)inb(0x40) << 8);
 }
 
-void pit_reset_to_default(void)
-{
-    // divisor = frequency / rate
-    uint16_t reload_value = (uint16_t)DIV_ROUNDUP(PIT_OSCILLATOR_FREQUENCY, PIT_INT_FREQUENCY);
-    pit_rate_init(reload_value);
-}
-
 #include "interrupt.h"
 #include "kprintf.h"
-static void pit_handler(INT_REG_INFO *regs)
+
+volatile size_t pit_ticks = 0;
+
+static void pit_handler(cpu_ctx_t *regs)
 {
     (void)regs;
-    // do something
+    pit_ticks++;
     lapic_send_eoi_signal();
 }
 
 void init_pit(void)
 {
-    pit_reset_to_default();
+    pit_rate_init(PIT_INT_FREQUENCY);
 
-    interrupts_register_vector(0x70, (uintptr_t)pit_handler);
-    ioapic_redirect_irq(0, 0x70, smp_request.response->bsp_lapic_id);
+    interrupts_register_vector(INT_VEC_PIT, (uintptr_t)pit_handler);
+    ioapic_redirect_irq(0, INT_VEC_PIT, smp_request.response->bsp_lapic_id);
 }

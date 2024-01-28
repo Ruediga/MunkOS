@@ -35,7 +35,7 @@ void ps2_write_config(uint8_t value) {
 }
 
 #include "kprintf.h"
-static void ps2_kb_handler(INT_REG_INFO *regs)
+static void ps2_kb_handler(cpu_ctx_t *regs)
 {
     (void)regs;
     ps2_read();
@@ -65,8 +65,7 @@ void ps2_init(void) {
     }
 
     // some random ass vector
-    ps2_keyboard_vector = 0x99;
-    interrupts_register_vector(ps2_keyboard_vector, (uintptr_t)ps2_kb_handler);
-    ioapic_redirect_irq(1, ps2_keyboard_vector, smp_request.response->bsp_lapic_id);
+    interrupts_register_vector(INT_VEC_PS2, (uintptr_t)ps2_kb_handler);
+    ioapic_redirect_irq(1, INT_VEC_PS2, smp_request.response->bsp_lapic_id);
     inb(0x60);
 }

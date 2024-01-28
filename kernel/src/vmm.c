@@ -47,9 +47,7 @@ static uint64_t *get_below_pml(uint64_t *pml_pointer, uint64_t index, bool force
 
     void *below_pml = pmm_claim_contiguous_pages(1);
     if (below_pml == NULL) {
-        // [DBG]
-        kprintf("Allocating pages for vmm tables failed\n\r");
-        __asm__ ("cli\n hlt\n");
+        kpanic(NULL, "Allocating pages for vmm tables failed\n\r");
     }
     // zero out contents of newly allocated page
     memset((void *)((uint64_t)below_pml + hhdm->offset), 0, PAGE_SIZE);
@@ -92,17 +90,13 @@ static uint64_t *pml4_to_pt(uint64_t *pml4, uint64_t va, bool force)
 static void init_kpm(void)
 {
     if (!kernel_address_request.response) {
-        // [DBG]
-        kprintf("limine kernel address request not answered\n\r");
-        __asm__ ("cli\n hlt\n");
+        kpanic(NULL, "limine kernel address request not answered\n\r");
     }
 
     // claim space for pml4
     kernel_pmc.pml4_address = (uintptr_t)pmm_claim_contiguous_pages(1);
     if (!kernel_pmc.pml4_address) {
-        // [DBG]
-        kprintf("vmm.c: kernel_pmc.pml4_address = pmmContiguousPages(1); returned NULL\n\r");
-        __asm__ ("cli\n hlt\n");
+        kpanic(NULL, "pmm_claim_contiguous_pages returned NULL\n\r");
     }
     kernel_pmc.pml4_address += hhdm->offset;
     // zero out contents of newly allocated page
@@ -121,8 +115,7 @@ static void init_kpm(void)
         data_end = ALIGN_UP((uintptr_t)data_end_addr, PAGE_SIZE);
 
     if (!kernel_address_request.response) {
-        kprintf("Kernel Address request failed!\n");
-        __asm__ volatile("cli\n hlt\n");
+        kpanic(NULL, "Kernel Address request failed!\n");
     }
 
     // limine
@@ -186,7 +179,7 @@ static void init_kpm(void)
     tlb_flush();
 }
 
-static k_spinlock map_page_lock;
+static k_spinlock_t map_page_lock;
 
 // [TODO] free unused pages holding page tables                 |
 // and write a proper range based allocator because wtf is this v
@@ -197,9 +190,7 @@ void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t
     size_t pt_index = EXTRACT_BITS(va, 12ul, 20ul);
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, true);
     if (pt == NULL) {
-        // [DBG]
-        kprintf("Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
-        __asm__ ("cli\n hlt\n");
+        kpanic(NULL, "Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
     }
     // map page
     pt[pt_index] = pa | flags;
@@ -215,9 +206,7 @@ void vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
-        // [DBG]
-        kprintf("Page Mapping couldnt be removed (pt doesn't exist)\n\r");
-        __asm__ ("cli\n hlt\n");
+        kpanic(NULL, "Page Mapping couldnt be removed (pt doesn't exist)\n\r");
     }
 
     // free page

@@ -1,9 +1,40 @@
 #pragma once
 
+#include "process.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
-#define DEADLOCK_MAX_ITERATIONS 100
+typedef struct {
+    // 0 = free, 1 = locked
+    //_Atomic(uintptr_t) lock;
+    size_t lock;
+} k_spinlock_t;
+
+struct task_state_segment {
+    uint32_t reserved_0;
+    uint64_t rsp0;  // privilege level stacks
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved_1;
+    uint64_t ist1;  // additional stack (IDT IST)
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved_2;
+    uint16_t reserved_3;
+    uint16_t iomba;
+};
+
+struct cpu {
+    size_t id;          // core id
+    uint32_t lapic_id;  // lapic id of the processor
+    uint64_t lapic_clock_frequency;
+    thread_t *idle_thread;
+};
 
 inline uint64_t read_msr(uint32_t reg)
 {
@@ -54,11 +85,5 @@ inline uintptr_t read_kernel_gs_base() {
     return read_msr(0xc0000102);
 }
 
-typedef struct {
-    // 0 = free, 1 = locked
-    //_Atomic(uintptr_t) lock;
-    size_t lock;
-} k_spinlock;
-
-void acquire_lock(k_spinlock *lock);
-void release_lock(k_spinlock *lock);
+void acquire_lock(k_spinlock_t *lock);
+void release_lock(k_spinlock_t *lock);

@@ -3,13 +3,23 @@
 #include "kprintf.h"
 #include "cpu.h"
 #include "apic.h"
+#include "scheduler.h"
 
 #include <stdarg.h>
 
 uintptr_t handlers[256] = {0};
 
-static k_spinlock int_register_vec_lock;
-static k_spinlock int_erase_vec_lock;
+static k_spinlock_t int_register_vec_lock;
+static k_spinlock_t int_erase_vec_lock;
+
+struct __attribute__((packed)) {
+    uint16_t size;
+    uint64_t offset;
+} idtr;
+
+__attribute__((aligned(16))) idt_descriptor idt[256];
+
+extern uint64_t isr_stub_table[];
 
 static const char * cpu_exception_strings[32] = {
     "Division by Zero",
@@ -46,16 +56,20 @@ static const char * cpu_exception_strings[32] = {
     "RESERVED VECTOR"
 };
 
-void default_exception_handler(INT_REG_INFO *regs)
+void default_interrupt_handler(cpu_ctx_t *regs)
 {
-    kpanic(regs, 0, "default_exception_handler called\n");
-    return;
+    kpanic(regs, "An unhandled interrupt occured\n");
 }
 
-// cpu exception panic
-void exc_panic(INT_REG_INFO *regs)
+void cpu_exception_handler(cpu_ctx_t *regs)
 {
-    kprintf("\n[IV 0x%lX] -> %s", regs->vector, cpu_exception_strings[regs->vector]);
+    kpanic(regs, "");
+}
+
+void print_register_context(cpu_ctx_t *regs)
+{
+    kprintf("\n[IV %lu] -> %s", regs->vector, regs->vector < 32 ? 
+        cpu_exception_strings[regs->vector] : "?\n");
 
     if (regs->vector == 8 || regs->vector == 10 || regs->vector == 11 || regs->vector == 12
         || regs->vector == 13 || regs->vector == 14 || regs->vector == 17 || regs->vector == 30)
@@ -74,49 +88,38 @@ void exc_panic(INT_REG_INFO *regs)
     kprintf("cr0: 0x%p   cr2: 0x%p   cr3: 0x%p   cr4: 0x%p\n",
         regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
-    kprintf("EFLAGS: 0x%b\n\n", regs->eflags);
+    kprintf("ss: 0x%p   cs: 0x%p   ds: 0x%p   es: 0x%p\n",
+        regs->ss, regs->cs, regs->ds, regs->es);
+
+    kprintf("EFLAGS: 0x%b\n\n", regs->rflags);
 }
 
 // kernel panic
-void kpanic(INT_REG_INFO *regs, uint8_t quiet, const char *format, ...)
+void kpanic(cpu_ctx_t *regs, const char *format, ...)
 {
-    (void)quiet;
+    __asm__ ("cli");    // if manually called interrupts may be on
 
     release_lock(&kprintf_lock); // kprintf may be locked
 
     kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
-    if (regs) {
-        exc_panic(regs);
-    }
 
     va_list args;
     va_start(args, format);
     kvprintf(format, args);
     va_end(args);
 
+    if (regs) print_register_context(regs);
+
     // halt other cores
-    lapic_send_ipi(0, 254, ICR_DEST_OTHERS);
+    struct cpu *this_cpu = get_this_cpu();
+    kprintf("Halting cores: %lu", this_cpu->id);
+    lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
 
-    __asm__ ("cli\n hlt");
-}
-
-void empty_handler(INT_REG_INFO *regs)
-{
-    (void)regs;
-    kprintf("Unhandled interrupt occured...\n");
     __asm__ ("hlt");
 }
 
-struct __attribute__((packed)) {
-    uint16_t size;
-    uint64_t offset;
-} idtr;
-
-__attribute__((aligned(16))) idt_descriptor idt[256];
-
-extern uint64_t isr_stub_table[];
-
-void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags) {
+void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)
+{
     idt_descriptor *descriptor = &idt[vector];
 
     descriptor->offset_low = isr & 0xFFFF;
@@ -130,14 +133,14 @@ void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags) {
 
 void init_idt(void)
 {
-    for (size_t vector = 0; vector < 256; vector++) {
-        idt_set_descriptor(vector, isr_stub_table[vector], 0x8E);
-    }
     for (size_t vector = 0; vector < 32; vector++) {
-        handlers[vector] = (uintptr_t)default_exception_handler;
+        // Present [7], kernel only [6:5], 0 [4], gate type [3:0]
+        idt_set_descriptor(vector, isr_stub_table[vector], 0b10001111);
+        handlers[vector] = (uintptr_t)cpu_exception_handler;
     }
     for (size_t vector = 32; vector < 256; vector++) {
-        handlers[vector] = (uintptr_t)empty_handler;
+        idt_set_descriptor(vector, isr_stub_table[vector], 0b10001110);
+        handlers[vector] = (uintptr_t)default_interrupt_handler;
     }
 
     load_idt();
@@ -146,10 +149,9 @@ void init_idt(void)
 void interrupts_register_vector(size_t vector, uintptr_t handler)
 {
     acquire_lock(&int_register_vec_lock);
-    if (handlers[vector] != (uintptr_t)empty_handler || !handler) {
+    if (handlers[vector] != (uintptr_t)default_interrupt_handler || !handler) {
         // panic
         kprintf("Failed to register vector %lu at 0x%p\n", vector, handler);
-        __asm__ ("hlt");
     }
     handlers[vector] = handler;
     release_lock(&int_register_vec_lock);
@@ -158,12 +160,12 @@ void interrupts_register_vector(size_t vector, uintptr_t handler)
 void interrupts_erase_vector(size_t vector)
 {
     acquire_lock(&int_erase_vec_lock);
-    if (handlers[vector] == (uintptr_t)empty_handler || vector < 32) {
+    if (handlers[vector] == (uintptr_t)default_interrupt_handler || vector < 32) {
         // panic
         kprintf("Failed to erase vector %lu\n", vector);
         __asm__ ("hlt");
     }
-    handlers[vector] = (uintptr_t)empty_handler;
+    handlers[vector] = (uintptr_t)default_interrupt_handler;
     release_lock(&int_erase_vec_lock);
 }
 

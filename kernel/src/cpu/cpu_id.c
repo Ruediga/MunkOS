@@ -5,6 +5,7 @@
 #include "liballoc.h"
 #include "kprintf.h"
 #include "memory.h"
+#include "interrupt.h"
 
 // 13 chars (including \0)
 static void cpuid_leaf0x0(struct cpuid_data_common *data)
@@ -126,7 +127,6 @@ void cpuid_compatibility_check(struct cpuid_data_common *data)
     if (!(data->feature_flags_edx & (1 << 0))) okay = 0;
 
     if (!okay) {
-        kprintf("\nYour CPU doesn't support required hardware features.\n");
-        __asm__ volatile ("cli\n hlt");
+        kpanic(NULL, "\nYour CPU doesn't support required hardware features.\n");
     }
 }

@@ -20,8 +20,9 @@ run-img-uefi
 ```
 
 If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
+(during this commit, it's actually my fault)
 
-### Third party software
+### Third party
 
 - [Limine](https://www.github.com/limine-bootloader/limine)
 - [flanterm](https://github.com/mintsuki/flanterm)
@@ -40,20 +41,29 @@ Currently, I prioritize work on the kernel.
 - [x] ACPI
 - [x] I/O APIC
 - [x] LAPIC
-- [ ] Timer
+- [x] Timer
 - [x] PS2 driver
-- [ ] Threads
-- [ ] SMP
-- [ ] Scheduler
+- [x] Threads
+- [x] SMP
+- [x] Scheduler ~
+- [ ] NVME driver
+- [ ] FS
+- [ ] Userland
 
 
 ### TODO
 
-avoid breaking stuff
+fix scheduler (do proper context switching)
+
+add support for syscalls
+
+file loading
+
+Try out TSC
 
 ### Long Term Goals
 
-I want MunkOS to be a primarily dependency free OS, so replacing third party software I use for convinience during development with my own is something I intend to do at some point™.
+I want MunkOS to be a primarily dependency free OS, so replacing third party libraries I use for convinience during development with my own is something I intend to do at some point™.
 
 <blockquote style="border-left: 0.5em solid rgb(30,144,255);
     padding: 1em; font-size: 1.1em;">

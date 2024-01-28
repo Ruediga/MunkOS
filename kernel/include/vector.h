@@ -5,17 +5,18 @@
 
 typedef struct
 {
-    uint8_t *data;
-    size_t _size_used_bytes;
-    size_t _size_allocated_bytes;
-} vector;
+    void *data;
+    size_t _size;
+    size_t _capacity;
+    size_t _element_size;
+} vector_t;
 
-void vector_init(vector *vec);
-void vector_append(vector *vec, void *value, size_t bytes);
-void vector_reset(vector *vec);
-void vector_cleanup(vector *vec);
-void vector_fill_rep(vector *vec, void *value, size_t bytes);
-void vector_fill(vector *vec, uint8_t value);
-void vector_resize(vector *vec, size_t bytes);
-int vector_find_rep(vector *vec, void *value, size_t bytes);
-int vector_find(vector *vec, uint8_t value);
+// quick init method
+#define VECTOR_INIT_FAST(size) { NULL, 0, 0, size }
+
+void vector_init(vector_t *vec, size_t elem_size);
+size_t vector_append(vector_t *vec, void *value);
+void vector_fill(vector_t *vec, void *value);
+void vector_resize(vector_t *vec, size_t length);
+void vector_reset(vector_t *vec);
+size_t vector_find(vector_t *vec, void *value);

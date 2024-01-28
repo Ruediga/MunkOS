@@ -2,6 +2,7 @@
 #include "kprintf.h"
 #include "memory.h"
 #include "macros.h"
+#include "interrupt.h"
 
 // usable entries are page aligned
 struct limine_memmap_response *memmap = NULL;
@@ -40,7 +41,6 @@ static void init_bitmap(void)
     // upwards page aligned
     pmm_total_bytes_pmm_structures = ALIGN_UP(pmm_bitmap_size_bytes
         + pmm_memmap_usable_entry_count * sizeof(struct pmm_usable_entry), PAGE_SIZE);
-    uint8_t success = 0;
     for (size_t i = 0; i < memmap->entry_count; i++) {
         struct limine_memmap_entry *entry = memmap->entries[i];
 
@@ -57,15 +57,10 @@ static void init_bitmap(void)
             entry->length -= ALIGN_UP(pmm_total_bytes_pmm_structures, PAGE_SIZE);
             entry->base += ALIGN_UP(pmm_total_bytes_pmm_structures, PAGE_SIZE);
 
-            success = 1;
-            break;
+            return;
         }
     }
-    if (!success) {
-        // [DBG]
-        kprintf("PMM couldn't fit the page bitmap anywhere\n");
-        __asm__ volatile ("cli\n hlt");
-    }
+    kpanic(NULL, "PMM couldn't fit the page bitmap anywhere\n");
 }
 
 static void fill_bitmap(void)
@@ -99,8 +94,7 @@ void init_pmm(void)
     hhdm = hhdm_request.response;
 
     if (!memmap || !hhdm || memmap->entry_count <= 1) {
-        kprintf("PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
-        __asm__ volatile ("cli\n hlt");
+        kpanic(NULL, "PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
     }
 
     // calc page_bitmap size
@@ -132,7 +126,6 @@ void init_pmm(void)
     // less than 1 GiB of usable memory
     if ((pmm_pages_usable * PAGE_SIZE) / (1024 * 1024) < 1000) {
         kprintf("stop being cheap and run this with >= 1 GiB of ram\n\r");
-        __asm__ volatile ("cli\n hlt");
     }
 }
 

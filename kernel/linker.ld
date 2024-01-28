@@ -23,7 +23,6 @@ SECTIONS
     /* that is the beginning of the region. */
     . = 0xffffffff80000000;
 
-    
     text_start_addr = .;
 
     .text : {
@@ -35,6 +34,7 @@ SECTIONS
     /* Move to the next memory page for .rodata */
     . += CONSTANT(MAXPAGESIZE);
 
+    . = ALIGN(0x1000);
     rodata_start_addr = .;
 
     .rodata : {
@@ -46,6 +46,7 @@ SECTIONS
     /* Move to the next memory page for .data */
     . += CONSTANT(MAXPAGESIZE);
 
+    . = ALIGN(0x1000);
     data_start_addr = .;
 
     .data : {

@@ -3,7 +3,7 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -cpu host -smp 8
+override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -cpu host -smp 8 --no-reboot --no-shutdown
 override EXTRA_QEMU_ARGS := -monitor stdio -d int,guest_errors -M smm=off\
 	-D log.txt -vga virtio
 

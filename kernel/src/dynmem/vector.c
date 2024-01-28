@@ -3,84 +3,83 @@
 #include "liballoc.h"
 #include "memory.h"
 
-// sets initial values and reserves a first sizeof(size_t) bytes big array
-void vector_init(vector *vec)
-{
-    vec->data = (uint8_t *)kmalloc(sizeof(size_t));
-    vec->_size_allocated_bytes = sizeof(size_t);
-    vec->_size_used_bytes = 0;
-}
+/*
+ * vector_t structure to work with same sized blocks of data,
+ * be careful not to append data of the wrong length
+ * Don't modify _size, _capacity or _element_size
+*/
 
-// push back
-void vector_append(vector *vec, void *value, size_t bytes)
+// call this only on vectors with no data
+void vector_init(vector_t *vec, size_t elem_size)
 {
-    if (vec->_size_allocated_bytes < vec->_size_used_bytes + bytes) {
-        vec->_size_allocated_bytes *= 2;
-        vec->data = krealloc((void *)vec->data, vec->_size_allocated_bytes);
-    }
-    memcpy((void *)(vec->data +vec->_size_used_bytes), value, bytes);
-    vec->_size_used_bytes += bytes;
-}
-
-// reinit
-void vector_reset(vector *vec)
-{
-    kfree((void *)vec->data);
-    vector_init(vec);
-}
-
-// free
-void vector_cleanup(vector *vec)
-{
-    kfree((void *)vec->data);
     vec->data = NULL;
-    vec->_size_allocated_bytes = 0;
-    vec->_size_used_bytes = 0;
+    vec->_size = 0;
+    vec->_capacity = 0;
+    vec->_element_size = elem_size;
 }
 
-// fill repeatedly with *value and remaining space with zeroes
-void vector_fill_rep(vector *vec, void *value, size_t bytes)
+// returns index
+size_t vector_append(vector_t *vec, void *value)
 {
-    size_t i = 0;
-    for (; i < vec->_size_allocated_bytes; i += bytes) {
-        memcpy((void *)(vec->data + i), value, bytes);
+    if (vec->_capacity == vec->_size) {
+        vec->_capacity = (!vec->_capacity ? 1 : vec->_capacity * 2);
+        vec->data = krealloc(vec->data, vec->_capacity * vec->_element_size);
     }
-    memset((void *)vec->data, 0, vec->_size_allocated_bytes - i);
-    vec->_size_used_bytes = vec->_size_allocated_bytes;
+
+    memcpy((uint8_t *)vec->data + vec->_size * vec->_element_size, value, vec->_element_size);
+    vec->_size++;
+    return vec->_size - 1;
 }
 
-// set every index to value
-inline void vector_fill(vector *vec, uint8_t value)
+// return 1 on success, 0 on fail
+size_t vector_remove(vector_t *vec, size_t idx)
 {
-    memset((void *)vec->data, value, vec->_size_allocated_bytes);
-    vec->_size_used_bytes = vec->_size_allocated_bytes;
+    if (idx >= vec->_size)
+        return 0;
+
+    // move elems after idx one backward
+    memmove((uint8_t *)vec->data + idx * vec->_element_size,
+            (uint8_t *)vec->data + (idx + 1) * vec->_element_size,
+            (vec->_size - idx - 1) * vec->_element_size);
+
+    vec->_size--;
+
+    if (vec->_size < vec->_capacity / 2) {
+        vec->_capacity = vec->_capacity / 2;
+        vec->data = krealloc(vec->data, vec->_capacity * vec->_element_size);
+    }
+
+    return 1;
 }
 
-// resizing downwards is a bad idea
-inline void vector_resize(vector *vec, size_t bytes)
+// fills all allocated space repeatedly with *value
+void vector_fill(vector_t *vec, void *value)
 {
-    krealloc((void*)vec->data, bytes);
-    vec->_size_allocated_bytes = bytes;
+    memcpy(vec->data, value, vec->_capacity * vec->_element_size);
 }
 
-// first byte index as (int) of *value for $bytes bytes, else -1
-int vector_find_rep(vector *vec, void *value, size_t bytes)
+// reserve space for *length elements
+void vector_resize(vector_t *vec, size_t length)
 {
-    for (size_t i = 0; i < vec->_size_allocated_bytes; i += bytes) {
-        if (!memcmp((void *)(vec->data + i), value, bytes)) {
+    // if made smaller
+    if (vec->_capacity > length)
+        vec->_size = length;
+
+    vec->_capacity = length;
+    vec->data = krealloc(vec->data, vec->_capacity * vec->_element_size);
+}
+
+void vector_reset(vector_t *vec)
+{
+    kfree(vec->data);
+    vector_init(vec, vec->_element_size);
+}
+
+size_t vector_find(vector_t *vec, void *value)
+{
+    for (size_t i = 0; i < vec->_size; i++) {
+        if (!memcmp((uint8_t *)vec->data + i * vec->_element_size, value, vec->_element_size))
             return i;
-        }
     }
-    return -1;
-}
-
-// first byte index as (int) of value == vec->data[i]
-int vector_find(vector *vec, uint8_t value)
-{
-    for (size_t i = 0; i < vec->_size_allocated_bytes; i++) {
-        if (vec->data[i] == value) {
-            return i;
-        }
-    }
-    return -1;
+    return (size_t)-1;
 }

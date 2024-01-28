@@ -1,6 +1,5 @@
 // LIBALLOC (v1.1) BY https://github.com/blanham/liballoc (FREE USE)
 
-// [FIXME]
 #include <stdint.h>
 #include <stddef.h>
 

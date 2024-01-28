@@ -1,27 +1,35 @@
 .globl handlers
 .extern handlers
 
+.macro _swapgs_if_user
+    #cmp $0x8, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
+    #je 1f
+    #swapgs
+	movl $0xC0000101, %ecx
+	rdmsr
+	testl %edx, %edx
+	je 1f
+	swapgs
+	xorl %ebx, %ebx
+1:
+.endm
+
 isr_handler_stub:
     # SS and SP for stack switch obtained from TSS
     # SS and SP of interrupted procedure get pushed onto new stack
     # (no privilege lvl change doesn't push these two)
-    # EFLAGS
+    # RFLAGS
     # CS
-    # EIP
+    # RIP
     # Error Code
-    # (manually push vector)
-    cmpq $0x8, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
-    je 1f
-    swapgs
-
-1:
+    # (manually pushed vector)
+    _swapgs_if_user
     pushq %rdi
     pushq %rsi
     pushq %rbp
-    pushq %rsp
-    pushq %rbx
     pushq %rdx
     pushq %rcx
+    pushq %rbx
     pushq %rax
     pushq %r8
     pushq %r9
@@ -31,8 +39,7 @@ isr_handler_stub:
     pushq %r13
     pushq %r14
     pushq %r15
-    # also push control, segment and flag registers
-    pushfq      # push 64 bit eflag
+
     movq %cr0, %rax
     pushq %rax
     movq %cr2, %rax
@@ -42,7 +49,12 @@ isr_handler_stub:
     movq %cr4, %rax
     pushq %rax
 
-    # void default_exception_handler(INT_REG_INFO *regs)
+    movq %ds, %rax
+    pushq %rax
+    movq %es, %rax
+    pushq %rax
+
+    # void default_exception_handler(cpu_ctx_t *regs)
     movq %rsp, %rdi
     movq 168(%rsp), %rbx        # read n from the stack
     shlq $3, %rbx               # offset = n * 8
@@ -51,7 +63,7 @@ isr_handler_stub:
     callq *(%rax)               # go to where rax value points and call this address
 
     # cr0 - cr4 and pushfq
-    addq $40, %rsp
+    addq $48, %rsp
     popq %r15
     popq %r14
     popq %r13
@@ -61,22 +73,17 @@ isr_handler_stub:
     popq %r9
     popq %r8
     popq %rax
+    popq %rbx
     popq %rcx
     popq %rdx
-    popq %rbx
-    popq %rsp
     popq %rbp
     popq %rsi
     popq %rdi
     # Clean up pushed error code and interrupt number from stack
     addq $16, %rsp
 
-    cmpq $0x8, 24(%rsp)
-    je 1f
-    swapgs
+    _swapgs_if_user
 
-1:
-    sti
     # Pop other flags and return to normal execution State
     iretq
 
@@ -89,7 +96,6 @@ _isr\index:
 .if 0x\index != 8 && 0x\index != 10 && 0x\index != 11 && 0x\index != 12 && 0x\index != 13 && 0x\index != 14 && 0x\index != 17 && 0x\index != 30
     pushq $0
 .endif
-    cli
     pushq $0x\index
     jmp isr_handler_stub
 .endm
