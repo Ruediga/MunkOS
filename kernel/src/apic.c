@@ -207,7 +207,7 @@ void ipi_handler(cpu_ctx_t *regs)
     (void)regs;
     __asm__ ("cli");
 
-    struct cpu *this_cpu = get_this_cpu();
+    cpu_local_t *this_cpu = get_this_cpu();
     kprintf(", %u", this_cpu->id);
 
     __asm__ ("hlt");
@@ -302,7 +302,7 @@ void calibrate_lapic_timer(void)
 void lapic_timer_handler(cpu_ctx_t *regs)
 {
     (void)regs;
-struct cpu *this_cpu = get_this_cpu();
+cpu_local_t *this_cpu = get_this_cpu();
     kprintf("oneshot signal at cpu %lu\n", this_cpu->id);
     (void)this_cpu;
 
@@ -311,7 +311,7 @@ struct cpu *this_cpu = get_this_cpu();
 
 void lapic_timer_periodic(size_t vector, size_t freq)
 {
-    struct cpu *this_cpu = get_this_cpu();
+    cpu_local_t *this_cpu = get_this_cpu();
     uint32_t count_per_tick = this_cpu->lapic_clock_frequency / freq;
 
     // unmask
@@ -323,7 +323,7 @@ void lapic_timer_periodic(size_t vector, size_t freq)
 // send an interrupt in n us (max 4000000)
 void lapic_timer_oneshot_us(size_t vector, size_t us)
 {
-    struct cpu *this_cpu = get_this_cpu();
+    cpu_local_t *this_cpu = get_this_cpu();
     uint32_t ticks_per_us = this_cpu->lapic_clock_frequency / 1000000ul;
 
     lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, 0b1011);
@@ -334,7 +334,7 @@ void lapic_timer_oneshot_us(size_t vector, size_t us)
 // send an interrupt in n ms (max: 500000)
 void lapic_timer_oneshot_ms(size_t vector, size_t ms)
 {
-    struct cpu *this_cpu = get_this_cpu();
+    cpu_local_t *this_cpu = get_this_cpu();
     uint32_t ticks_per_ms = this_cpu->lapic_clock_frequency / 1000ul / 128ul;
 
     lapic_write(LAPIC_TIMER_DIV_CONFIG_REG, 0b1010);

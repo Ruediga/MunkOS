@@ -35,21 +35,19 @@ extern volatile size_t pit_ticks;
 void test_thread(void)
 {
     while (1) {
-        if ((pit_ticks % 1000))
-            kprintf("1 sec passed %lu\n", pit_ticks);
+        if ((pit_ticks % 1000)) {
+            kprintf("test\n");
+        }
     }
-
-    wait_for_scheduling();
 }
 
 void test_thread2(void)
 {
     while (1) {
-        if ((pit_ticks % 1000))
-            kprintf("1 sec passed here too %lu\n", pit_ticks);
+        if ((pit_ticks % 1000)) {
+            kprintf("test\n");
+        }
     }
-
-    wait_for_scheduling();
 }
 
 void kernel_entry(void)

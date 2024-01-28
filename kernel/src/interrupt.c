@@ -95,11 +95,11 @@ void print_register_context(cpu_ctx_t *regs)
 }
 
 // kernel panic
-void kpanic(cpu_ctx_t *regs, const char *format, ...)
+void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
 {
     __asm__ ("cli");    // if manually called interrupts may be on
 
-    release_lock(&kprintf_lock); // kprintf may be locked
+    //release_lock(&kprintf_lock); // kprintf may be locked ?
 
     kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
 
@@ -111,11 +111,13 @@ void kpanic(cpu_ctx_t *regs, const char *format, ...)
     if (regs) print_register_context(regs);
 
     // halt other cores
-    struct cpu *this_cpu = get_this_cpu();
+    cpu_local_t *this_cpu = get_this_cpu();
     kprintf("Halting cores: %lu", this_cpu->id);
     lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
 
     __asm__ ("hlt");
+
+    __builtin_unreachable();
 }
 
 void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)

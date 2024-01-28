@@ -1,5 +1,8 @@
 #pragma once
+
 #include <stdint.h>
+
+struct task_state_segment;
 
 /*
  * https://wiki.osdev.org/Global_Descriptor_Table#Segment_Descriptor
@@ -43,4 +46,4 @@ typedef struct {
 
 void init_gdt(void);
 void rld_gdt();
-void rld_tss(uintptr_t tss_address);
+void rld_tss(struct task_state_segment *tss_address);

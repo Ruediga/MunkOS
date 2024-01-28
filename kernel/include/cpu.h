@@ -1,14 +1,15 @@
 #pragma once
 
-#include "process.h"
-
 #include <stddef.h>
 #include <stdint.h>
+
+struct thread_t;
 
 typedef struct {
     // 0 = free, 1 = locked
     //_Atomic(uintptr_t) lock;
     size_t lock;
+    size_t dumb_idea;
 } k_spinlock_t;
 
 struct task_state_segment {
@@ -29,12 +30,13 @@ struct task_state_segment {
     uint16_t iomba;
 };
 
-struct cpu {
+typedef struct cpu_local_t {
     size_t id;          // core id
     uint32_t lapic_id;  // lapic id of the processor
     uint64_t lapic_clock_frequency;
-    thread_t *idle_thread;
-};
+    struct task_state_segment tss;
+    struct thread_t *idle_thread;
+} cpu_local_t;
 
 inline uint64_t read_msr(uint32_t reg)
 {
@@ -68,21 +70,21 @@ inline uintptr_t read_fs_base() {
 }
 
 // gs base
-inline void write_gs_base(uintptr_t address) {
-    write_msr(0xc0000101, address);
+inline void write_gs_base(struct thread_t *address) {
+    write_msr(0xc0000101, (uintptr_t)address);
 }
 
-inline uintptr_t read_gs_base() {
-    return read_msr(0xc0000101);
+inline struct thread_t *read_gs_base() {
+    return (struct thread_t *)read_msr(0xc0000101);
 }
 
 // kernel gs base
-inline void write_kernel_gs_base(uintptr_t address) {
-    write_msr(0xc0000102, address);
+inline void write_kernel_gs_base(struct thread_t *address) {
+    write_msr(0xc0000102, (uintptr_t)address);
 }
 
-inline uintptr_t read_kernel_gs_base() {
-    return read_msr(0xc0000102);
+inline struct thread_t *read_kernel_gs_base() {
+    return (struct thread_t *)read_msr(0xc0000102);
 }
 
 void acquire_lock(k_spinlock_t *lock);

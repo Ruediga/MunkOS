@@ -20,7 +20,6 @@ run-img-uefi
 ```
 
 If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
-(during this commit, it's actually my fault)
 
 ### Third party
 
@@ -35,17 +34,17 @@ Currently, I prioritize work on the kernel.
 ### Kernel
 
 - [x] PMM
-- [x] VMM
+- [x] VMM (add self balancing interval tree)
 - [x] Kernel-Heap
 - [x] Interrupts
 - [x] ACPI
 - [x] I/O APIC
 - [x] LAPIC
-- [x] Timer
+- [x] Timer (PIT & LAPIC)
 - [x] PS2 driver
-- [x] Threads
 - [x] SMP
-- [x] Scheduler ~
+- [x] Threads & Processes
+- [x] Scheduler
 - [ ] NVME driver
 - [ ] FS
 - [ ] Userland

@@ -16,7 +16,7 @@ struct limine_smp_request smp_request = {
 };
 
 struct limine_smp_response *smp_response = NULL;
-struct cpu *global_cpus = NULL; // store cpu data for each booted cpu
+cpu_local_t *global_cpus = NULL; // store cpu data for each booted cpu
 uint64_t smp_cpu_count = 0;
 
 static volatile size_t startup_checksum = 0;
@@ -25,22 +25,25 @@ k_spinlock_t somelock;
 
 static void processor_core_entry(struct limine_smp_info *smp_info)
 {
-    struct cpu *this_cpu = (struct cpu *)smp_info->extra_argument;
+    cpu_local_t *this_cpu = (cpu_local_t *)smp_info->extra_argument;
 
     rld_gdt();
     load_idt();
+    rld_tss(&this_cpu->tss);
 
     vmm_set_ctx(&kernel_pmc);
 
-    // [TODO] tss
     thread_t *idle_thread = kmalloc(sizeof(thread_t));
-    idle_thread->cpu = this_cpu;
     idle_thread->owner = kernel_task;
+    idle_thread->schedule = false;
+    idle_thread->cpu = this_cpu;
+    idle_thread->gs_base = idle_thread;
+    idle_thread->fs_base = 0;
 
     this_cpu->idle_thread = idle_thread;
 
-    write_gs_base((uintptr_t)idle_thread);
-    write_kernel_gs_base((uintptr_t)idle_thread);
+    write_gs_base(idle_thread);
+    write_kernel_gs_base(idle_thread);
 
     acquire_lock(&somelock);
     init_lapic();
@@ -70,7 +73,7 @@ void boot_other_cores(void)
     smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;
 
-    global_cpus = kmalloc(sizeof(struct cpu) * smp_cpu_count);
+    global_cpus = kmalloc(sizeof(cpu_local_t) * smp_cpu_count);
 
     for (size_t i = 0; i < smp_cpu_count; i++) {
         struct limine_smp_info *smp_info = smp_response->cpus[i];

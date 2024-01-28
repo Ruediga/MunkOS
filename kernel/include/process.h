@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+struct cpu_local_t;
+
 enum task_state {
     NONE
 };
@@ -22,13 +24,13 @@ struct task {
     // fds, scheduling info
 };
 
-typedef struct {
+typedef struct thread_t {
     struct task *owner;     // what task does this thread belong to
     bool schedule;
     vector_t stacks;
     void *kernel_stack;
-    struct cpu *cpu;        // thread runs here
+    struct cpu_local_t *cpu;        // thread runs here
     cpu_ctx_t context;      // registers
-    uintptr_t gs_base;
+    struct thread_t *gs_base;
     uintptr_t fs_base;
 } thread_t;
