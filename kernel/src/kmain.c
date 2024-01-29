@@ -35,8 +35,11 @@ extern volatile size_t pit_ticks;
 void test_thread(void)
 {
     while (1) {
-        if ((pit_ticks % 1000)) {
-            kprintf("test\n");
+        if (!(pit_ticks % 1000)) {
+            size_t ar = interrupts_enabled();
+            ints_off();
+            kprintf("T1=%lu\n", ar ? 1ul : 0ul);
+            ints_on();
         }
     }
 }
@@ -44,8 +47,11 @@ void test_thread(void)
 void test_thread2(void)
 {
     while (1) {
-        if ((pit_ticks % 1000)) {
-            kprintf("test\n");
+        if (!(pit_ticks % 1000)) {
+            size_t ar = interrupts_enabled();
+            ints_off();
+            kprintf("T2=%lu\n", ar ? 1ul : 0ul);
+            ints_on();
         }
     }
 }
@@ -53,7 +59,7 @@ void test_thread2(void)
 void kernel_entry(void)
 {
     if (LIMINE_BASE_REVISION_SUPPORTED == false || framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
-        __asm__ volatile ("hlt");
+        __asm__ ("hlt");
     }
 
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];

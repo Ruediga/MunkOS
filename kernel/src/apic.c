@@ -205,7 +205,7 @@ inline void lapic_write(uint32_t reg, uint32_t val)
 void ipi_handler(cpu_ctx_t *regs)
 {
     (void)regs;
-    __asm__ ("cli");
+    ints_off();
 
     cpu_local_t *this_cpu = get_this_cpu();
     kprintf(", %u", this_cpu->id);
@@ -282,13 +282,13 @@ void calibrate_lapic_timer(void)
     pit_rate_init(LAPIC_TIMER_CALIBRATION_FREQ);
     ioapic_redirect_irq(0, INT_VEC_GENERAL_PURPOSE, get_this_cpu()->lapic_id);
     interrupts_register_vector(INT_VEC_GENERAL_PURPOSE, (uintptr_t)calibrate_lapic_timer_pit_callback);
-    __asm__ ("sti");
+    ints_on();
 
     while (calibration_probe_count < LAPIC_TIMER_CALIBRATION_PROBES) {
         __asm__ ("pause");
     }
 
-    __asm__ ("cli");
+    ints_off();
 
     ioapic_remove_irq(0, get_this_cpu()->lapic_id);
     interrupts_erase_vector(INT_VEC_GENERAL_PURPOSE);

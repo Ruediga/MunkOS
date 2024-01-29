@@ -2,15 +2,15 @@
 .extern handlers
 
 .macro _swapgs_if_user
-    #cmp $0x8, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
-    #je 1f
-    #swapgs
-	movl $0xC0000101, %ecx
-	rdmsr
-	testl %edx, %edx
-	je 1f
-	swapgs
-	xorl %ebx, %ebx
+    cmp $24, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
+    je 1f
+    swapgs
+	#movl $0xC0000101, %ecx
+	#rdmsr
+	#testl %edx, %edx
+	#je 1f
+	#swapgs
+	#xorl %ebx, %ebx
 1:
 .endm
 

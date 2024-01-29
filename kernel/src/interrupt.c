@@ -88,18 +88,18 @@ void print_register_context(cpu_ctx_t *regs)
     kprintf("cr0: 0x%p   cr2: 0x%p   cr3: 0x%p   cr4: 0x%p\n",
         regs->cr0, regs->cr2, regs->cr3, regs->cr4);
 
-    kprintf("ss: 0x%p   cs: 0x%p   ds: 0x%p   es: 0x%p\n",
+    kprintf("ss: 0x%p    cs: 0x%p    ds: 0x%p    es: 0x%p\n",
         regs->ss, regs->cs, regs->ds, regs->es);
 
-    kprintf("EFLAGS: 0x%b\n\n", regs->rflags);
+    kprintf("RIP: 0x%p   EFLAGS: 0x%b\n\n", regs->rip, regs->rflags);
 }
 
 // kernel panic
 void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
 {
-    __asm__ ("cli");    // if manually called interrupts may be on
+    ints_off();    // if manually called interrupts may be on
 
-    //release_lock(&kprintf_lock); // kprintf may be locked ?
+    release_lock(&kprintf_lock); // kprintf may be locked ?
 
     kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
 

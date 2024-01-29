@@ -52,13 +52,11 @@ Currently, I prioritize work on the kernel.
 
 ### TODO
 
-fix scheduler (do proper context switching)
+syscalls
 
-add support for syscalls
+file system
 
-file loading
-
-Try out TSC
+do some stuff with TSC
 
 ### Long Term Goals
 

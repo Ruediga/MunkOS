@@ -6,8 +6,6 @@
 struct thread_t;
 
 typedef struct {
-    // 0 = free, 1 = locked
-    //_Atomic(uintptr_t) lock;
     size_t lock;
     size_t dumb_idea;
 } k_spinlock_t;
@@ -65,7 +63,7 @@ inline void write_fs_base(uintptr_t address) {
     write_msr(0xc0000100, address);
 }
 
-inline uintptr_t read_fs_base() {
+inline uintptr_t read_fs_base(void) {
     return read_msr(0xc0000100);
 }
 
@@ -74,7 +72,7 @@ inline void write_gs_base(struct thread_t *address) {
     write_msr(0xc0000101, (uintptr_t)address);
 }
 
-inline struct thread_t *read_gs_base() {
+inline struct thread_t *read_gs_base(void) {
     return (struct thread_t *)read_msr(0xc0000101);
 }
 
@@ -83,8 +81,16 @@ inline void write_kernel_gs_base(struct thread_t *address) {
     write_msr(0xc0000102, (uintptr_t)address);
 }
 
-inline struct thread_t *read_kernel_gs_base() {
+inline struct thread_t *read_kernel_gs_base(void) {
     return (struct thread_t *)read_msr(0xc0000102);
+}
+
+static inline void ints_off(void) {
+    __asm__ ("cli");
+}
+
+static inline void ints_on(void) {
+    __asm__ ("sti");
 }
 
 void acquire_lock(k_spinlock_t *lock);

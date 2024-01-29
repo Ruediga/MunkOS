@@ -25,12 +25,11 @@ struct task {
 };
 
 typedef struct thread_t {
-    struct task *owner;     // what task does this thread belong to
-    bool schedule;
+    struct task *owner;         // what task does this thread belong to
     vector_t stacks;
     void *kernel_stack;
-    struct cpu_local_t *cpu;        // thread runs here
-    cpu_ctx_t context;      // registers
+    struct cpu_local_t *cpu;    // thread runs here
+    cpu_ctx_t context;          // registers
     struct thread_t *gs_base;
     uintptr_t fs_base;
 } thread_t;
