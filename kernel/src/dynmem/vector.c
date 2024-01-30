@@ -32,10 +32,10 @@ size_t vector_append(vector_t *vec, void *value)
 }
 
 // return 1 on success, 0 on fail
-size_t vector_remove(vector_t *vec, size_t idx)
+bool vector_remove_idx(vector_t *vec, size_t idx)
 {
     if (idx >= vec->_size)
-        return 0;
+        return false;
 
     // move elems after idx one backward
     memmove((uint8_t *)vec->data + idx * vec->_element_size,
@@ -49,7 +49,15 @@ size_t vector_remove(vector_t *vec, size_t idx)
         vec->data = krealloc(vec->data, vec->_capacity * vec->_element_size);
     }
 
-    return 1;
+    return true;
+}
+
+// return false on failure to remove element
+bool vector_remove_val(vector_t *vec, void *val)
+{
+    size_t idx = vector_find(vec, val);
+    if (idx == (size_t)-1) return false;
+    return vector_remove_idx(vec, idx);
 }
 
 // fills all allocated space repeatedly with *value

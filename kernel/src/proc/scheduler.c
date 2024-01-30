@@ -48,10 +48,10 @@ thread_t *scheduler_add_kernel_thread(void *entry)
 
     thread_t *new_thread = kmalloc(sizeof(thread_t));
 
-    // [TODO] make sure to deallocate the stack
+    // make sure to deallocate the stack
     vector_init(&new_thread->stacks, sizeof(uintptr_t));
 
-    // stack size ok?
+    // [TODO] proper system
     void *stack_phys = pmm_claim_contiguous_pages(100);
     vector_append(&new_thread->stacks, &stack_phys);
     void *stack = stack_phys + 100 * PAGE_SIZE + hhdm->offset;
@@ -74,6 +74,23 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     return new_thread;
 }
 
+void scheduler_yield(void)
+{
+    // ints should be off
+
+    cpu_local_t *this_cpu = get_this_cpu();
+
+    // make the scheduler think we were in the idle thread
+    write_gs_base(this_cpu->idle_thread->gs_base);
+    write_kernel_gs_base(this_cpu->idle_thread->gs_base);
+
+    // reschedule this core
+    lapic_send_ipi(this_cpu->lapic_id, INT_VEC_SCHEDULER, ICR_DEST_SELF);
+
+    ints_on();
+    for (;;) __asm__ ("hlt");
+}
+
 __attribute__((noreturn)) void wait_for_scheduling(void)
 {
     ints_off();
@@ -90,6 +107,20 @@ void scheduler_handler(cpu_ctx_t *regs)
     cpu_local_t *this_cpu = get_this_cpu();
     thread_t *this_thread = get_current_thread();
 
+    // cleanup
+    if (this_thread->killed) {
+        vector_remove_val(&this_thread->owner->threads, (void *)this_thread);
+
+        for (size_t i = 0; i < vector_size(&this_thread->stacks); i++) {
+            kfree(vector_at(&this_thread->stacks, i) - 100 * PAGE_SIZE - hhdm->offset);
+        }
+        vector_reset(&this_thread->stacks);
+
+        kfree(this_thread);
+
+        goto killed;
+    }
+
     // save current threads context
     memcpy(&this_thread->context, regs, sizeof(cpu_ctx_t));
     // enqueue thread again
@@ -97,6 +128,7 @@ void scheduler_handler(cpu_ctx_t *regs)
         queue_enqueue(&thread_queue, (void *)this_thread);
     //kprintf("saved context (idle_t?: %i) on core %lu\n", this_thread == this_cpu->idle_thread, get_this_cpu()->id);
 
+killed:
     // switch to the next thread
     thread_t *next_thread = (thread_t *)queue_dequeue(&thread_queue);
     if (!next_thread) {
@@ -120,7 +152,7 @@ void scheduler_handler(cpu_ctx_t *regs)
 
     memcpy(regs, &next_thread->context, sizeof(cpu_ctx_t));
 
-    next_thread->cpu = this_thread->cpu;
+    next_thread->cpu = this_cpu;
 
     write_gs_base(next_thread->gs_base);
     write_kernel_gs_base(next_thread->gs_base);
@@ -129,4 +161,16 @@ void scheduler_handler(cpu_ctx_t *regs)
     //kprintf("rescheduled to core %lu\n", get_this_cpu()->id);
 
     release_lock(&scheduler_lock);
+}
+
+void __attribute__((noreturn)) scheduler_kernel_thread_exit(void)
+{
+    ints_off(); // may be called while ints are on
+
+    struct thread_t *this_thread = get_current_thread();
+    this_thread->killed = true;
+
+    scheduler_yield();
+
+    __builtin_unreachable();
 }

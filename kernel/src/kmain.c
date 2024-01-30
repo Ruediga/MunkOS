@@ -42,6 +42,8 @@ void test_thread(void)
             ints_on();
         }
     }
+
+    scheduler_kernel_thread_exit();
 }
 
 void test_thread2(void)
@@ -54,6 +56,36 @@ void test_thread2(void)
             ints_on();
         }
     }
+
+    scheduler_kernel_thread_exit();
+}
+
+void kernel_main(void)
+{
+    kprintf("NFINEHIUFHNEJBFGUBHJ\n");
+
+    scheduler_kernel_thread_exit();
+}
+
+void t2(void)
+{
+    kprintf("hoghogof t2\n");
+
+    scheduler_kernel_thread_exit();
+}
+
+void t3(void)
+{
+    kprintf("hoghogof t3\n");
+
+    scheduler_kernel_thread_exit();
+}
+
+void t1(void)
+{
+    kprintf("hoghogof t1\n");
+
+    scheduler_kernel_thread_exit();
 }
 
 void kernel_entry(void)
@@ -115,8 +147,14 @@ void kernel_entry(void)
 
     ps2_init();
 
+    scheduler_add_kernel_thread(t1);
+    scheduler_add_kernel_thread(t2);
+    scheduler_add_kernel_thread(t3);
+
     scheduler_add_kernel_thread(test_thread);
     scheduler_add_kernel_thread(test_thread2);
+
+    scheduler_add_kernel_thread(kernel_main);
 
     kprintf("bsp core waiting\n");
     wait_for_scheduling();

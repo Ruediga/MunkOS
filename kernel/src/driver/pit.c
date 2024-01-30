@@ -3,6 +3,7 @@
 #include "io.h"
 #include "smp.h"
 #include "apic.h"
+#include "time.h"
 
 /*
  * PIT (https://wiki.osdev.org/PIT)
@@ -64,15 +65,12 @@ uint16_t pit_read_current(void)
     return count | ((uint16_t)inb(0x40) << 8);
 }
 
-#include "interrupt.h"
-#include "kprintf.h"
-
 volatile size_t pit_ticks = 0;
-
 static void pit_handler(cpu_ctx_t *regs)
 {
     (void)regs;
     pit_ticks++;
+    common_timer_handler();
     lapic_send_eoi_signal();
 }
 

@@ -52,6 +52,8 @@ Currently, I prioritize work on the kernel.
 
 ### TODO
 
+cleaner mm abstraction, especially for scheduler
+
 syscalls
 
 file system

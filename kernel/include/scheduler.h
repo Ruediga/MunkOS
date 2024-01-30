@@ -14,7 +14,8 @@ void init_scheduling(void);
 struct task *scheduler_add_task(struct task *parent_proc, page_map_ctx *pmc);
 thread_t *scheduler_add_kernel_thread(void *entry);
 void scheduler_handler(cpu_ctx_t *regs);
-void __attribute__((noreturn))  wait_for_scheduling(void);
+void __attribute__((noreturn)) wait_for_scheduling(void);
+void __attribute__((noreturn)) scheduler_kernel_thread_exit(void);
 
 static inline thread_t *get_current_thread(void) {
     return (thread_t *)read_kernel_gs_base();

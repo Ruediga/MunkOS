@@ -32,4 +32,5 @@ typedef struct thread_t {
     cpu_ctx_t context;          // registers
     struct thread_t *gs_base;
     uintptr_t fs_base;
+    bool killed;                // set when exiting
 } thread_t;
