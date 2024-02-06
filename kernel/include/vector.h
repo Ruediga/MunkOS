@@ -2,32 +2,136 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
-typedef struct
-{
-    void *data;
-    size_t _size;
-    size_t _capacity;
-    size_t _element_size;
-} vector_t;
+#include "liballoc.h"
 
-static inline size_t vector_size(vector_t *vec) {
-    return vec->_size;
-}
+/*
+ * |============|
+ * | HOW TO USE |
+ * |============|
+ * 
+ * 1) Define the type the vector should have:
+ *    - Must only consist of symbols C allows for variable names
+ *    - This means, that e.g. unsigned long long * or struct xy has to be typedef'd
+ * typedef struct xy my_struct;
+ * typedef unsigned long long * ullptr;
+ *
+ * 2) Initialize the templates for the array
+ *    - DECL in a header file
+ *    - TMPL in a c file
+ *    - structs MUST be TMPL'ed as NON_NATIVE, natives CAN be (possibly worsening performance)
+ *    - NON_NATIVE implementation expects there to be no padding between struct members (?)
+ * VECTOR_DECL_TYPE_NON_NATIVE(my_struct)
+ * VECTOR_TMPL_TYPE_NON_NATIVE(my_struct)
+ * VECTOR_DECL_TYPE(ullptr)
+ * VECTOR_TMPL_TYPE(ullptr)
+ * 
+ * 3) Usage
+ * vector_my_struct_t = VECTOR_INIT(my_struct);
+*/
 
-static inline void *vector_at(vector_t *vec, size_t idx) {
-    return ((uint8_t *)vec->data + idx * vec->_element_size);
-}
+// [TODO]: pass pointer to non native push_back + find and setting values
 
-// quick init method
-#define VECTOR_INIT_FAST(size) { NULL, 0, 0, size }
+#define CONCAT(x, y) x##y
 
-void vector_init(vector_t *vec, size_t elem_size);
-size_t vector_append(vector_t *vec, void *value);
-void vector_fill(vector_t *vec, void *value);
-void vector_resize(vector_t *vec, size_t length);
-void vector_reset(vector_t *vec);
-size_t vector_find(vector_t *vec, void *value);
-bool vector_remove_idx(vector_t *vec, size_t idx);
-bool vector_remove_val(vector_t *vec, void *val);
+#define VECTOR_NOT_FOUND (size_t)-1
+
+#define __VECTOR_DEFINE_DECLARATIONS(T) \
+    size_t __vector_internal_push_back_##T(struct CONCAT(vector_##T, _t) *, T); \
+    void __vector_internal_reset_##T(struct CONCAT(vector_##T, _t) *); \
+    void __vector_internal_remove_##T(struct CONCAT(vector_##T, _t) *, size_t); \
+    size_t __vector_internal_find_##T(struct CONCAT(vector_##T, _t) *, T); \
+    size_t __vector_internal_get_size_##T(struct CONCAT(vector_##T, _t) *);
+
+#define __VECTOR_DEFINE_TYPE(T) \
+    typedef struct CONCAT(vector_##T, _t) { \
+        T *data; \
+        size_t size; \
+        size_t capacity; \
+        size_t (*push_back)(struct CONCAT(vector_##T, _t) *, T); \
+        void (*reset)(struct CONCAT(vector_##T, _t) *); \
+        void (*remove)(struct CONCAT(vector_##T, _t) *, size_t); \
+        size_t (*find)(struct CONCAT(vector_##T, _t) *, T); \
+        size_t (*get_size)(struct CONCAT(vector_##T, _t) *); \
+    } CONCAT(vector_##T, _t);
+
+#define VECTOR_INIT(T) { NULL, 0ul, 0ul, __vector_internal_push_back_##T, __vector_internal_reset_##T, \
+    __vector_internal_remove_##T, __vector_internal_find_##T, __vector_internal_get_size_##T }
+
+#define VECTOR_REINIT(vec, T) do { \
+    vec.data = NULL; \
+    vec.size = vec.capacity = 0; \
+    vec.push_back = __vector_internal_push_back_##T; \
+    vec.reset = __vector_internal_reset_##T; \
+    vec.remove = __vector_internal_remove_##T; \
+    vec.find = __vector_internal_find_##T; \
+    vec.get_size = __vector_internal_get_size_##T; \
+} while(0)
+
+#define VECTOR_DECL_TYPE(T) \
+    __VECTOR_DEFINE_TYPE(T) \
+    __VECTOR_DEFINE_DECLARATIONS(T) 
+
+#define __VECTOR_DEFINE_PUSH_BACK(T) \
+    size_t __vector_internal_push_back_##T(CONCAT(vector_##T, _t) *vec, T value) { \
+        if (vec->size >= vec->capacity) { \
+            vec->capacity = vec->capacity ? vec->capacity * 2 : 8; \
+            vec->data = krealloc(vec->data, vec->capacity * sizeof(T)); \
+        } \
+        vec->data[vec->size++] = value; \
+        return vec->size - 1; \
+    }
+
+#define __VECTOR_DEFINE_REMOVE(T) \
+    void __vector_internal_remove_##T(CONCAT(vector_##T, _t) *vec, size_t idx) { \
+        if (idx >= vec->size) return; \
+        for (size_t start = idx; start < vec->size - 1; start++) { \
+             vec->data[start] = vec->data[start + 1]; \
+        } \
+        vec->size--; \
+    }
+
+
+#define __VECTOR_DEFINE_FIND(T) \
+    size_t __vector_internal_find_##T(CONCAT(vector_##T, _t) *vec, T value) { \
+        for (size_t i = 0; i < vec->size; i++) { \
+            if (value == vec->data[i]) return i; \
+        } \
+        return VECTOR_NOT_FOUND; \
+    }
+
+#define __VECTOR_DEFINE_FIND_NON_NATIVE(T) \
+    size_t __vector_internal_find_##T(CONCAT(vector_##T, _t) *vec, T value) { \
+        for (size_t i = 0; i < vec->size; i++) { \
+            if (!memcmp(&value, vec->data + i, sizeof(T))) return i; \
+        } \
+        return VECTOR_NOT_FOUND; \
+    }
+
+#define __VECTOR_DEFINE_RESET(T) \
+    void __vector_internal_reset_##T(CONCAT(vector_##T, _t) *vec) { \
+        kfree((vec)->data); \
+        (vec)->data = NULL; \
+        (vec)->size = (vec)->capacity = 0; \
+    }
+
+#define __VECTOR_DEFINE_GET_SIZE(T) \
+    inline size_t __vector_internal_get_size_##T(CONCAT(vector_##T, _t) *vec) { \
+        return vec->size; \
+    }
+
+#define __VECTOR_TMPL_TYPE_COMMON(T) \
+    __VECTOR_DEFINE_PUSH_BACK(T) \
+    __VECTOR_DEFINE_RESET(T) \
+    __VECTOR_DEFINE_REMOVE(T) \
+    __VECTOR_DEFINE_GET_SIZE(T)
+
+#define VECTOR_TMPL_TYPE(T) \
+    __VECTOR_TMPL_TYPE_COMMON(T) \
+    __VECTOR_DEFINE_FIND(T)
+
+#define VECTOR_TMPL_TYPE_NON_NATIVE(T) \
+    __VECTOR_TMPL_TYPE_COMMON(T) \
+    __VECTOR_DEFINE_FIND_NON_NATIVE(T)

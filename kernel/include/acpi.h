@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "limine.h"
+#include "vector.h"
 
 #define MADT_ENTRY_PROCESSOR_LAPIC 0x0
 #define MADT_ENTRY_IO_APIC 0x1
@@ -24,26 +25,8 @@
 #define MADT_ENTRY_GIC_INTERRUPT_TRANSLATION_SERVICE 0xF
 #define MADT_ENTRY_MP_WAKEUP 0x10
 
-// root system description pointer (pa)
-extern struct acpi_rsdp *rsdp_ptr;
-// root / extended system description table (pa)
-extern struct acpi_rsdt *rsdt_ptr;
-
-extern struct acpi_fadt *fadt_ptr;
-extern struct acpi_madt *madt_ptr;
-
-extern struct limine_rsdp_request rsdp_request;
-
-extern struct acpi_ioapic *ioapics;
-extern struct acpi_lapic *lapics;
-extern struct acpi_iso *isos;
-
-extern size_t ioapic_count;
-extern size_t lapic_count;
-extern size_t iso_count;
-
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html
-struct acpi_rsdp {
+struct __attribute__ ((packed)) acpi_rsdp {
     // rsdt size: 20
     char signature[8];
     uint8_t checksum;
@@ -56,7 +39,7 @@ struct acpi_rsdp {
     uint64_t xsdt_address;
     uint8_t extended_checksum;
     uint8_t reserved[3];
-} __attribute__ ((packed));
+};
 
 struct acpi_sdt_header {
     char signature[4];
@@ -76,13 +59,13 @@ struct acpi_rsdt {
   uint8_t ptr[];
 };
 
-struct acpi_gas {
+struct __attribute__((packed)) acpi_gas {
     uint8_t address_space;
     uint8_t bit_width;
     uint8_t bit_offset;
     uint8_t access_size;
     uint64_t address;
-} __attribute__((packed));
+};
 
 struct acpi_fadt {
     struct acpi_sdt_header header;
@@ -160,27 +143,27 @@ struct acpi_madt {
     uint8_t entries[];
 };
 
-struct acpi_madt_header {
+struct __attribute__((packed)) acpi_madt_header {
     uint8_t lcst_id;
     uint8_t length;
-} __attribute__((packed));
+};
 
-struct acpi_lapic {
+struct __attribute__((packed)) acpi_lapic {
     struct acpi_madt_header header;
     uint8_t acpi_processor_uid;
     uint8_t apic_id;
     uint32_t flags;
-} __attribute__((packed));
+};
 
-struct acpi_ioapic {
+struct __attribute__((packed)) acpi_ioapic {
     struct acpi_madt_header header;
     uint8_t io_apic_id;
     uint8_t reserved;
     uint32_t io_apic_address; // physical
     uint32_t global_system_interrupt_base; // ints start here
-} __attribute__((packed));
+};
 
-struct acpi_iso {
+struct __attribute__((packed)) acpi_iso {
     struct acpi_madt_header header;
     uint8_t bus_isa;
     uint8_t source_irq;
@@ -188,8 +171,21 @@ struct acpi_iso {
     // bits [3:2] -> trigger mode
     // bits [1:0] -> polarity
     uint16_t flags;
-} __attribute__((packed));
+};
 
 void parse_acpi(void);
 void *get_sdt(const char signature[static 4]);
 void parse_madt(struct acpi_madt *_madt);
+
+extern struct limine_rsdp_request rsdp_request;
+
+typedef struct acpi_ioapic * acpi_ioapic_ptr;
+typedef struct acpi_lapic * acpi_lapic_ptr;
+typedef struct acpi_iso * acpi_iso_ptr;
+VECTOR_DECL_TYPE(acpi_ioapic_ptr)
+VECTOR_DECL_TYPE(acpi_lapic_ptr)
+VECTOR_DECL_TYPE(acpi_iso_ptr)
+
+extern vector_acpi_ioapic_ptr_t ioapics;
+extern vector_acpi_lapic_ptr_t lapics;
+extern vector_acpi_iso_ptr_t isos;

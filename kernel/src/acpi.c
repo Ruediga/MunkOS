@@ -3,8 +3,11 @@
 #include "pmm.h"
 #include "vmm.h"
 #include "acpi.h"
-#include "vector.h"
 #include "interrupt.h"
+
+VECTOR_TMPL_TYPE(acpi_ioapic_ptr)
+VECTOR_TMPL_TYPE(acpi_lapic_ptr)
+VECTOR_TMPL_TYPE(acpi_iso_ptr)
 
 bool xsdt_present;
 
@@ -21,18 +24,9 @@ struct limine_rsdp_request rsdp_request = {
     .revision = 0
 };
 
-static vector_t vec_ioapic;
-static vector_t vec_lapic;
-static vector_t vec_iso;
-
-// these need to hold addresses of vector->data!
-struct acpi_ioapic *ioapics;
-struct acpi_lapic *lapics;
-struct acpi_iso *isos;
-
-size_t ioapic_count = 0;
-size_t lapic_count = 0;
-size_t iso_count = 0;
+vector_acpi_ioapic_ptr_t ioapics = VECTOR_INIT(acpi_ioapic_ptr);
+vector_acpi_lapic_ptr_t lapics = VECTOR_INIT(acpi_lapic_ptr);
+vector_acpi_iso_ptr_t isos = VECTOR_INIT(acpi_iso_ptr);
 
 static bool validate_table(struct acpi_sdt_header *table_header)
 {
@@ -83,13 +77,7 @@ void parse_acpi(void)
         kpanic(NULL, "MADT not found\n");
     }
 
-    vector_init(&vec_lapic, sizeof(vec_lapic));
-    vector_init(&vec_ioapic, sizeof(vec_ioapic));
-    vector_init(&vec_iso, sizeof(vec_iso));
     parse_madt(madt_ptr);
-    lapics = (struct acpi_lapic *)vec_lapic.data;
-    ioapics = (struct acpi_ioapic *)vec_ioapic.data;
-    isos = (struct acpi_iso *)vec_iso.data;
 
 }
 
@@ -119,25 +107,22 @@ void parse_madt(struct acpi_madt *madt)
         struct acpi_madt_header *madt_hdr = (struct acpi_madt_header *)(madt->entries + off);
         if (madt_hdr->lcst_id == MADT_ENTRY_PROCESSOR_LAPIC) {
             // lapic
-            vector_append(&vec_lapic, madt_hdr);
-            lapic_count++;
+            lapics.push_back(&lapics, (acpi_lapic_ptr)madt_hdr);
         }
         else if (madt_hdr->lcst_id == MADT_ENTRY_IO_APIC) {
             // ioapic
-            vector_append(&vec_ioapic, madt_hdr);
-            ioapic_count++;
+            ioapics.push_back(&ioapics, (acpi_ioapic_ptr)madt_hdr);
         }
         else if (madt_hdr->lcst_id == MADT_ENTRY_INTERRUPT_SOURCE_OVERRIDE) {
             // iso
-            vector_append(&vec_iso, madt_hdr);
-            iso_count++;
+            isos.push_back(&isos, (acpi_iso_ptr)madt_hdr);
         }
 
         off += madt_hdr->length;
     }
 
-    kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapic_count, lapic_count);
-    if (ioapic_count == 0) {
+    kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapics.get_size(&ioapics), lapics.get_size(&lapics));
+    if (ioapics.get_size(&ioapics) == 0) {
         kpanic(NULL, "Systems without an IOAPIC are not supported!\n");
     }
 }

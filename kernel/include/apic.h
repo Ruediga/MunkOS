@@ -6,6 +6,7 @@
 #include "pmm.h"
 #include "acpi.h"
 #include "interrupt.h"
+#include "vector.h"
 
 #define PIC_MASTER_OFFSET 0x20
 #define PIC_SLAVE_OFFSET 0x28

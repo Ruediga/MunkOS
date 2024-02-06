@@ -62,28 +62,28 @@ void test_thread2(void)
 
 void kernel_main(void)
 {
-    kprintf("NFINEHIUFHNEJBFGUBHJ\n");
+    kprintf("i am t0 (main thread)\n");
 
     scheduler_kernel_thread_exit();
 }
 
 void t2(void)
 {
-    kprintf("hoghogof t2\n");
+    kprintf("i am t2\n");
 
     scheduler_kernel_thread_exit();
 }
 
 void t3(void)
 {
-    kprintf("hoghogof t3\n");
+    kprintf("i am t3\n");
 
     scheduler_kernel_thread_exit();
 }
 
 void t1(void)
 {
-    kprintf("hoghogof t1\n");
+    kprintf("i am t1\n");
 
     scheduler_kernel_thread_exit();
 }
@@ -151,11 +151,11 @@ void kernel_entry(void)
     scheduler_add_kernel_thread(t2);
     scheduler_add_kernel_thread(t3);
 
-    scheduler_add_kernel_thread(test_thread);
-    scheduler_add_kernel_thread(test_thread2);
+    //scheduler_add_kernel_thread(test_thread);
+    //scheduler_add_kernel_thread(test_thread2);
 
     scheduler_add_kernel_thread(kernel_main);
 
-    kprintf("bsp core waiting\n");
+    kprintf("bsp core waiting, active threads: %lu\n", kernel_task->threads.size);
     wait_for_scheduling();
 }

@@ -5,8 +5,13 @@
 #include "cpu.h"
 #include "queue.h"
 #include "memory.h"
+#include "process.h"
 
-vector_t proc_list = VECTOR_INIT_FAST(sizeof(struct task *));
+VECTOR_TMPL_TYPE(thread_t_ptr)
+VECTOR_TMPL_TYPE(task_ptr)
+VECTOR_TMPL_TYPE(void_ptr)
+
+vector_task_ptr_t proc_list = VECTOR_INIT(task_ptr);
 
 queue_t thread_queue = QUEUE_INIT_FAST();
 
@@ -16,7 +21,7 @@ struct task *kernel_task = NULL;
 
 void init_scheduling(void)
 {
-    interrupts_register_vector(INT_VEC_SCHEDULER, (uintptr_t)scheduler_handler);
+    interrupts_register_vector(INT_VEC_SCHEDULER, (uintptr_t)scheduler_preempt);
     kernel_task = scheduler_add_task(NULL, &kernel_pmc);
 }
 
@@ -25,17 +30,23 @@ void init_scheduling(void)
 struct task *scheduler_add_task(struct task *parent_proc, page_map_ctx *pmc)
 {
     acquire_lock(&scheduler_lock);
-    struct task *new_proc = kmalloc(sizeof(new_proc));
+    struct task *new_proc = kmalloc(sizeof(struct task));
 
-    vector_init(&new_proc->threads, sizeof(thread_t));
+    VECTOR_REINIT(new_proc->threads, thread_t_ptr);
 
     if (parent_proc == NULL) {
         // if kernel process
         new_proc->parent = NULL;
         new_proc->pmc = pmc;
     }
+    //kprintf("1 vec=%p, data=%p, size=%p, cap=%lu, elem=%lu\n", &new_proc->threads, new_proc->threads.data,
+    //    new_proc->threads._size, new_proc->threads._capacity, new_proc->threads._element_size);
+    //kprintf("1 vec=%p, data=%p, size=%p, cap=%lu, elem=%lu\n", &new_proc->threads, new_proc->threads.data,
+    //    new_proc->threads._size, new_proc->threads._capacity, new_proc->threads._element_size);
 
-    new_proc->pid = vector_append(&proc_list, new_proc);
+    //new_proc->pid = vector_append(&proc_list, (void *)&new_proc);
+    //kprintf("1 vec=%p, data=%p, size=%p, cap=%lu, elem=%p\n", &new_proc->threads, new_proc->threads.data,
+    //    new_proc->threads._size, new_proc->threads._capacity, new_proc->threads._element_size);
 
     release_lock(&scheduler_lock);
     return new_proc;
@@ -48,12 +59,12 @@ thread_t *scheduler_add_kernel_thread(void *entry)
 
     thread_t *new_thread = kmalloc(sizeof(thread_t));
 
-    // make sure to deallocate the stack
-    vector_init(&new_thread->stacks, sizeof(uintptr_t));
+    // [TODO] make sure to deallocate the stack
+    VECTOR_REINIT(new_thread->stacks, void_ptr);
 
     // [TODO] proper system
     void *stack_phys = pmm_claim_contiguous_pages(100);
-    vector_append(&new_thread->stacks, &stack_phys);
+    new_thread->stacks.push_back(&new_thread->stacks, stack_phys);
     void *stack = stack_phys + 100 * PAGE_SIZE + hhdm->offset;
 
     new_thread->context.cs = 0x8;
@@ -62,10 +73,13 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     new_thread->context.rip = (uintptr_t)entry;
     new_thread->context.rdi = 0; // pass args?
     new_thread->context.rsp = (uint64_t)stack;
+    // [TODO] kernel stack?
     new_thread->context.cr3 = (uint64_t)kernel_task->pmc->pml4_address - hhdm->offset;
     new_thread->gs_base = new_thread;
 
     new_thread->owner = kernel_task;
+
+    kprintf("ktask->tid = %lu\n", kernel_task->threads.push_back(&kernel_task->threads, new_thread));
 
     queue_enqueue(&thread_queue, (void *)new_thread);
 
@@ -74,15 +88,12 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     return new_thread;
 }
 
+// give up the cpu for one full round of scheduling
 void scheduler_yield(void)
 {
     // ints should be off
 
     cpu_local_t *this_cpu = get_this_cpu();
-
-    // make the scheduler think we were in the idle thread
-    write_gs_base(this_cpu->idle_thread->gs_base);
-    write_kernel_gs_base(this_cpu->idle_thread->gs_base);
 
     // reschedule this core
     lapic_send_ipi(this_cpu->lapic_id, INT_VEC_SCHEDULER, ICR_DEST_SELF);
@@ -100,7 +111,7 @@ __attribute__((noreturn)) void wait_for_scheduling(void)
     __builtin_unreachable();
 }
 
-void scheduler_handler(cpu_ctx_t *regs)
+void scheduler_preempt(cpu_ctx_t *regs)
 {
     acquire_lock(&scheduler_lock);
 
@@ -109,14 +120,24 @@ void scheduler_handler(cpu_ctx_t *regs)
 
     // cleanup
     if (this_thread->killed) {
-        vector_remove_val(&this_thread->owner->threads, (void *)this_thread);
+        kprintf("freeing thread...\n");
 
-        for (size_t i = 0; i < vector_size(&this_thread->stacks); i++) {
-            kfree(vector_at(&this_thread->stacks, i) - 100 * PAGE_SIZE - hhdm->offset);
+        size_t index = this_thread->owner->threads.find(&this_thread->owner->threads, this_thread);
+        if (index == VECTOR_NOT_FOUND) {
+            kpanic(NULL, "Trying to free dead or non existing thread\n");
         }
-        vector_reset(&this_thread->stacks);
+        this_thread->owner->threads.remove(&this_thread->owner->threads, index);
+
+        for (size_t i = 0; i < this_thread->stacks.size; i++) {
+            // [FIXME]
+            pmm_free_contiguous_pages((void *)((uintptr_t)this_thread->stacks.data[i] - 100 * PAGE_SIZE - hhdm->offset), 100);
+        }
+
+        this_thread->stacks.reset(&this_thread->stacks);
 
         kfree(this_thread);
+
+        kprintf("freed successfully\n");
 
         goto killed;
     }

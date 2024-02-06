@@ -99,7 +99,7 @@ void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
 {
     ints_off();    // if manually called interrupts may be on
 
-    release_lock(&kprintf_lock); // kprintf may be locked ?
+    //release_lock(&kprintf_lock); // kprintf may be locked ?
 
     kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
 
