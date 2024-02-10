@@ -17,8 +17,8 @@
 #define BITMAP_READ_BIT(bitmap, bit_index) ((bitmap)[(bit_index) / 8] & (1 << ((bit_index) % 8)))
 
 // alignment
-#define ALIGN_UP(x, base) ((x + base - 1) & ~(base - 1))
-#define ALIGN_DOWN(x, base) (x & ~(base - 1))
+#define ALIGN_UP(x, base) (((x) + (base) - 1) & ~((base) - 1))
+#define ALIGN_DOWN(x, base) ((x) & ~((base) - 1))
 
 // extract bits
 // EXTRACT_BITS(ul, ul, ul)

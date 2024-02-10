@@ -73,3 +73,4 @@ void calibrate_lapic_timer(void);
 void lapic_timer_periodic(size_t vector, size_t freq);
 void lapic_timer_oneshot_us(size_t vector, size_t us);
 void lapic_timer_oneshot_ms(size_t vector, size_t ms);
+void lapic_timer_halt(void);

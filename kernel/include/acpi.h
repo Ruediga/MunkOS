@@ -67,6 +67,7 @@ struct __attribute__((packed)) acpi_gas {
     uint64_t address;
 };
 
+// pack?
 struct acpi_fadt {
     struct acpi_sdt_header header;
     uint32_t firmware_ctrl;
@@ -136,11 +137,27 @@ struct acpi_fadt {
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#multiple-apic-flags
 // first byte (entries): Interrupt Controller Structure Type (ICST),
 // second byte (entries): length
+// pack?
 struct acpi_madt {
     struct acpi_sdt_header header;
     uint32_t lapic_address_phys;
     uint32_t flags;
     uint8_t entries[];
+};
+
+struct __attribute__((packed)) acpi_mcfg_entry {
+    uint64_t base;
+    uint16_t segment;
+    uint8_t host_start;
+    uint8_t host_end;
+    uint32_t reserved;
+};
+
+// unpacking breaks stuff
+struct __attribute__((packed)) acpi_mcfg {
+    struct acpi_sdt_header header;
+    uint64_t reserved;
+    struct acpi_mcfg_entry entries[];
 };
 
 struct __attribute__((packed)) acpi_madt_header {
@@ -189,3 +206,7 @@ VECTOR_DECL_TYPE(acpi_iso_ptr)
 extern vector_acpi_ioapic_ptr_t ioapics;
 extern vector_acpi_lapic_ptr_t lapics;
 extern vector_acpi_iso_ptr_t isos;
+
+extern struct acpi_fadt *fadt_ptr;
+extern struct acpi_madt *madt_ptr;
+extern struct acpi_mcfg *mcfg_ptr;

@@ -18,6 +18,7 @@ struct acpi_rsdt *rsdt_ptr = NULL;
 
 struct acpi_fadt *fadt_ptr = NULL;
 struct acpi_madt *madt_ptr = NULL;
+struct acpi_mcfg *mcfg_ptr = NULL;
 
 struct limine_rsdp_request rsdp_request = {
     .id = LIMINE_RSDP_REQUEST,
@@ -75,6 +76,10 @@ void parse_acpi(void)
     }
     if (!(madt_ptr = get_sdt("APIC")) || !validate_table(&madt_ptr->header)) {
         kpanic(NULL, "MADT not found\n");
+    }
+    // PCIe config, removed bcus packed || !validate_table(&mcfg_ptr->header)
+    if (!(mcfg_ptr = get_sdt("MCFG"))) {
+        kpanic(NULL, "MCFG not found\n");
     }
 
     parse_madt(madt_ptr);

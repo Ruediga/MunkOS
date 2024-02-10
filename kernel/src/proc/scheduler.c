@@ -59,7 +59,6 @@ thread_t *scheduler_add_kernel_thread(void *entry)
 
     thread_t *new_thread = kmalloc(sizeof(thread_t));
 
-    // [TODO] make sure to deallocate the stack
     VECTOR_REINIT(new_thread->stacks, void_ptr);
 
     // [TODO] proper system
@@ -79,7 +78,7 @@ thread_t *scheduler_add_kernel_thread(void *entry)
 
     new_thread->owner = kernel_task;
 
-    kprintf("ktask->tid = %lu\n", kernel_task->threads.push_back(&kernel_task->threads, new_thread));
+    kprintf("ktask->tid = %lu (%p)\n", kernel_task->threads.push_back(&kernel_task->threads, new_thread), new_thread);
 
     queue_enqueue(&thread_queue, (void *)new_thread);
 
@@ -94,6 +93,8 @@ void scheduler_yield(void)
     // ints should be off
 
     cpu_local_t *this_cpu = get_this_cpu();
+
+    lapic_timer_halt();
 
     // reschedule this core
     lapic_send_ipi(this_cpu->lapic_id, INT_VEC_SCHEDULER, ICR_DEST_SELF);
@@ -120,11 +121,10 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
     // cleanup
     if (this_thread->killed) {
-        kprintf("freeing thread...\n");
 
         size_t index = this_thread->owner->threads.find(&this_thread->owner->threads, this_thread);
         if (index == VECTOR_NOT_FOUND) {
-            kpanic(NULL, "Trying to free dead or non existing thread\n");
+            kpanic(NULL, "Trying to free dead or non existing thread (%p)\n", this_thread);
         }
         this_thread->owner->threads.remove(&this_thread->owner->threads, index);
 
@@ -137,7 +137,7 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
         kfree(this_thread);
 
-        kprintf("freed successfully\n");
+        kprintf("freed thread (%p) successfully\n", this_thread);
 
         goto killed;
     }

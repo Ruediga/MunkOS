@@ -320,6 +320,13 @@ void lapic_timer_periodic(size_t vector, size_t freq)
 	lapic_write(LAPIC_LVT_TIMER_REG, vector | LAPIC_TIMER_LVTTR_PERIODIC);
 }
 
+void lapic_timer_halt(void)
+{
+    // clear init count and mask
+    lapic_write(LAPIC_LVT_TIMER_REG, 1 << 16);
+    lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, 0);
+}
+
 // send an interrupt in n us (max 4000000)
 void lapic_timer_oneshot_us(size_t vector, size_t us)
 {

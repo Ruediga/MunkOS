@@ -20,6 +20,7 @@
 #include "ps2_keyboard.h"
 #include "pit.h"
 #include "scheduler.h"
+#include "pci.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -31,38 +32,12 @@ struct limine_framebuffer_request framebuffer_request = {
 struct cpuid_data_common cpuid_data = {};
 struct flanterm_context *ft_ctx;
 
-extern volatile size_t pit_ticks;
-void test_thread(void)
-{
-    while (1) {
-        if (!(pit_ticks % 1000)) {
-            size_t ar = interrupts_enabled();
-            ints_off();
-            kprintf("T1=%lu\n", ar ? 1ul : 0ul);
-            ints_on();
-        }
-    }
-
-    scheduler_kernel_thread_exit();
-}
-
-void test_thread2(void)
-{
-    while (1) {
-        if (!(pit_ticks % 1000)) {
-            size_t ar = interrupts_enabled();
-            ints_off();
-            kprintf("T2=%lu\n", ar ? 1ul : 0ul);
-            ints_on();
-        }
-    }
-
-    scheduler_kernel_thread_exit();
-}
-
 void kernel_main(void)
 {
     kprintf("i am t0 (main thread)\n");
+
+    init_pci();
+    kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
 
     scheduler_kernel_thread_exit();
 }
@@ -140,8 +115,6 @@ void kernel_entry(void)
     kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
 
-    //kpanic(NULL, "Panic test %lu\n", 123456789ul);
-
     kprintf("%s redirecting pit...\n\r", kernel_okay_string);
     init_pit();
 
@@ -150,9 +123,6 @@ void kernel_entry(void)
     scheduler_add_kernel_thread(t1);
     scheduler_add_kernel_thread(t2);
     scheduler_add_kernel_thread(t3);
-
-    //scheduler_add_kernel_thread(test_thread);
-    //scheduler_add_kernel_thread(test_thread2);
 
     scheduler_add_kernel_thread(kernel_main);
 

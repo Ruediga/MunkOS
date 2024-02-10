@@ -45,8 +45,10 @@ Currently, I prioritize work on the kernel.
 - [x] SMP
 - [x] Threads & Processes
 - [x] Scheduler
+- [x] PCIe
+- [ ] GPT / MBR
 - [ ] NVME driver
-- [ ] FS
+- [ ] FAT 32
 - [ ] Userland
 
 
@@ -60,7 +62,9 @@ syscalls
 
 file system
 
-do some stuff with TSC
+do some stuff with TSC?
+
+scheduler API
 
 ### Long Term Goals
 
