@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stdint.h"
+
 // macros
 // ======
 
@@ -23,6 +25,16 @@
 // extract bits
 // EXTRACT_BITS(ul, ul, ul)
 #define EXTRACT_BITS(value, start_index, end_index) (((value) & (((1ul << ((end_index) - (start_index) + 1)) - 1) << (start_index))) >> (start_index))
+
+// math
+#define POW(base, exponent) ({ \
+    uint64_t out = 1; \
+    for (uint64_t i = 0; i < exponent; i++) { \
+        out *= base; \
+    } \
+    out; \
+})
+
 
 // typedefs
 // ========

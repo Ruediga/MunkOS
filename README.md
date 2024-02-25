@@ -19,7 +19,7 @@ run-img-bios
 run-img-uefi
 ```
 
-If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same cpu as I do (family=6, model=141, stepping=1), your hardware is broken and you should demand a refund.
+If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund.
 
 ### Third party
 
@@ -34,7 +34,7 @@ Currently, I prioritize work on the kernel.
 ### Kernel
 
 - [x] PMM
-- [x] VMM (add self balancing interval tree)
+- [x] VMM
 - [x] Kernel-Heap
 - [x] Interrupts
 - [x] ACPI
@@ -46,23 +46,35 @@ Currently, I prioritize work on the kernel.
 - [x] Threads & Processes
 - [x] Scheduler
 - [x] PCIe
+- [ ] NVME driver (WIP)
 - [ ] GPT / MBR
-- [ ] NVME driver
 - [ ] FAT 32
 - [ ] Userland
 
 
 ### TODO
 
-bin tree
+#### FIXME
 
-cleaner mm abstraction, especially for scheduler
+scheduler bugs out on real hardware and with > 80 cores in qemu
+
+vmm tlb shootdown not smp core synced
+
+vmm locks
+
+not fun nvme/pci bugs
+
+#### Features
+
+a proper device / driver interface
+
+new vmm system
 
 syscalls
 
 file system
 
-do some stuff with TSC?
+TSC
 
 scheduler API
 
@@ -72,6 +84,6 @@ I want MunkOS to be a primarily dependency free OS, so replacing third party lib
 
 <blockquote style="border-left: 0.5em solid rgb(30,144,255);
     padding: 1em; font-size: 1.1em;">
-    <p style="font-style: italic">"The SDM knows the answer to everything."</p>
+    <p style="font-style: italic">"Just read the docs"</p>
     <footer style="color: rgb(30,144,255); text-align: right;">- A wise man</footer>
 </blockquote>

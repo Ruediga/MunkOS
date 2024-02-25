@@ -2,5 +2,5 @@
 
 void common_timer_handler(void)
 {
-    // [TODO]
+    // [TODO] timers, unix time, sleep()
 }

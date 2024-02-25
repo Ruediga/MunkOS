@@ -32,8 +32,6 @@
  * vector_my_struct_t = VECTOR_INIT(my_struct);
 */
 
-// [TODO]: pass pointer to non native push_back + find and setting values
-
 #define CONCAT(x, y) x##y
 
 #define VECTOR_NOT_FOUND (size_t)-1

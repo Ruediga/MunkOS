@@ -57,7 +57,7 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     acquire_lock(&scheduler_lock);
     kprintf("Adding new kernel thread...\n");
 
-    thread_t *new_thread = kmalloc(sizeof(thread_t));
+    thread_t *new_thread = kcalloc(1, sizeof(thread_t));
 
     VECTOR_REINIT(new_thread->stacks, void_ptr);
 
@@ -72,7 +72,6 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     new_thread->context.rip = (uintptr_t)entry;
     new_thread->context.rdi = 0; // pass args?
     new_thread->context.rsp = (uint64_t)stack;
-    // [TODO] kernel stack?
     new_thread->context.cr3 = (uint64_t)kernel_task->pmc->pml4_address - hhdm->offset;
     new_thread->gs_base = new_thread;
 
@@ -105,7 +104,6 @@ void scheduler_yield(void)
 
 __attribute__((noreturn)) void wait_for_scheduling(void)
 {
-    ints_off();
     lapic_timer_oneshot_us(INT_VEC_SCHEDULER, 20 * 1000);
     ints_on();
     for (;;) __asm__ ("hlt");
@@ -121,7 +119,6 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
     // cleanup
     if (this_thread->killed) {
-
         size_t index = this_thread->owner->threads.find(&this_thread->owner->threads, this_thread);
         if (index == VECTOR_NOT_FOUND) {
             kpanic(NULL, "Trying to free dead or non existing thread (%p)\n", this_thread);
@@ -145,31 +142,29 @@ void scheduler_preempt(cpu_ctx_t *regs)
     // save current threads context
     memcpy(&this_thread->context, regs, sizeof(cpu_ctx_t));
     // enqueue thread again
-    if (this_thread != this_cpu->idle_thread)
+    if (this_thread != this_cpu->idle_thread) {
         queue_enqueue(&thread_queue, (void *)this_thread);
+    }
     //kprintf("saved context (idle_t?: %i) on core %lu\n", this_thread == this_cpu->idle_thread, get_this_cpu()->id);
 
 killed:
     // switch to the next thread
     thread_t *next_thread = (thread_t *)queue_dequeue(&thread_queue);
     if (!next_thread) {
-        lapic_timer_oneshot_us(INT_VEC_SCHEDULER, 20 * 1000);
-        lapic_send_eoi_signal();
-
         memcpy(regs, &this_cpu->idle_thread->context, sizeof(cpu_ctx_t));
 
         write_gs_base(this_cpu->idle_thread->gs_base);
         write_kernel_gs_base(this_cpu->idle_thread->gs_base);
         vmm_set_ctx(this_cpu->idle_thread->owner->pmc);
 
+        lapic_timer_oneshot_us(INT_VEC_SCHEDULER, 20 * 1000);
+        lapic_send_eoi_signal();
+
         //kprintf("idle on core %lu\n", get_this_cpu()->id);
 
         release_lock(&scheduler_lock);
         return;
     }
-
-    lapic_timer_oneshot_us(INT_VEC_SCHEDULER, 5 * 1000);
-    lapic_send_eoi_signal();
 
     memcpy(regs, &next_thread->context, sizeof(cpu_ctx_t));
 
@@ -180,6 +175,9 @@ killed:
     vmm_set_ctx(next_thread->owner->pmc);
     this_cpu->tss.rsp0 = (uint64_t)next_thread->kernel_stack;
     //kprintf("rescheduled to core %lu\n", get_this_cpu()->id);
+
+    lapic_timer_oneshot_us(INT_VEC_SCHEDULER, 5 * 1000);
+    lapic_send_eoi_signal();
 
     release_lock(&scheduler_lock);
 }

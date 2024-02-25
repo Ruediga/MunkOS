@@ -12,13 +12,13 @@ VECTOR_TMPL_TYPE(acpi_iso_ptr)
 bool xsdt_present;
 
 // root system description pointer (pa)
-struct acpi_rsdp *rsdp_ptr = NULL;
+volatile struct acpi_rsdp *rsdp_ptr = NULL;
 // root / extended system description table (pa)
-struct acpi_rsdt *rsdt_ptr = NULL;
+volatile struct acpi_rsdt *rsdt_ptr = NULL;
 
-struct acpi_fadt *fadt_ptr = NULL;
-struct acpi_madt *madt_ptr = NULL;
-struct acpi_mcfg *mcfg_ptr = NULL;
+volatile struct acpi_fadt *fadt_ptr = NULL;
+volatile struct acpi_madt *madt_ptr = NULL;
+volatile struct acpi_mcfg *mcfg_ptr = NULL;
 
 struct limine_rsdp_request rsdp_request = {
     .id = LIMINE_RSDP_REQUEST,
@@ -29,7 +29,7 @@ vector_acpi_ioapic_ptr_t ioapics = VECTOR_INIT(acpi_ioapic_ptr);
 vector_acpi_lapic_ptr_t lapics = VECTOR_INIT(acpi_lapic_ptr);
 vector_acpi_iso_ptr_t isos = VECTOR_INIT(acpi_iso_ptr);
 
-static bool validate_table(struct acpi_sdt_header *table_header)
+static bool validate_table(volatile struct acpi_sdt_header *table_header)
 {
     uint8_t sum = 0;
 
@@ -106,7 +106,7 @@ void *get_sdt(const char signature[static 4])
     return NULL;
 }
 
-void parse_madt(struct acpi_madt *madt)
+void parse_madt(volatile struct acpi_madt *madt)
 {
     for (uintptr_t off = 0; off < madt->header.length - sizeof(struct acpi_madt); ) {
         struct acpi_madt_header *madt_hdr = (struct acpi_madt_header *)(madt->entries + off);

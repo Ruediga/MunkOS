@@ -33,7 +33,7 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
     cpu_local_t *this_cpu = (cpu_local_t *)smp_info->extra_argument;
     rld_tss(&this_cpu->tss);
 
-    thread_t *idle_thread = kmalloc(sizeof(thread_t));
+    thread_t *idle_thread = kcalloc(1, sizeof(thread_t));
     idle_thread->owner = kernel_task;
     idle_thread->cpu = this_cpu;
     idle_thread->gs_base = idle_thread;

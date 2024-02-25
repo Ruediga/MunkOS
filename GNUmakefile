@@ -1,12 +1,11 @@
-# Nuke built-in rules and variables.
 override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -cpu host -smp 16 --no-reboot --no-shutdown
+override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 16 --no-reboot --no-shutdown
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off\
-	-D log.txt -vga virtio
-
+	-D log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=mybridge \
+	-device pci-bridge,chassis_nr=3,id=mybridge2
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =
@@ -31,7 +30,7 @@ override DEFAULT_HOST_LIBS :=
 $(eval $(call DEFAULT_VAR,HOST_LIBS,$(DEFAULT_HOST_LIBS)))
 
 .PHONY: all
-all:
+all: ovmf $(IMAGE_NAME).iso $(IMAGE_NAME).img
 
 .PHONY: run-iso-bios
 run-iso-bios: $(IMAGE_NAME).iso
@@ -49,7 +48,8 @@ run-img-bios: $(IMAGE_NAME).img
 .PHONY: run-img-uefi
 run-img-uefi: ovmf $(IMAGE_NAME).img
 	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd\
-		-drive file=$(IMAGE_NAME).img,format=raw
+		-drive file=$(IMAGE_NAME).img,format=raw,if=none,id=nvme-drive \
+        -device nvme,drive=nvme-drive,serial=0
 
 ovmf:
 	mkdir -p ovmf

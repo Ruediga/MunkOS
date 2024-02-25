@@ -507,7 +507,7 @@ int kvprintf(const char* format, va_list var_args)
 
         case 'p':
         {
-            width = sizeof(void *) * 2U;
+            width = sizeof(void *) * 2u;
             flags |= KPRINTF_KPRINTF_FLAGS_JUSTIFY_LEFT_PAD_ZEROES | KPRINTF_FLAGS_UPPERCASE;
             const bool is_ll = sizeof(uintptr_t) == sizeof(long long);
             if (is_ll)
@@ -534,6 +534,8 @@ int kvprintf(const char* format, va_list var_args)
             format++;
             break;
         }
+
+        width = 0;
     }
 
     release_lock(&kprintf_lock);

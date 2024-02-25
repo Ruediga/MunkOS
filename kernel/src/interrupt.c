@@ -69,13 +69,13 @@ void cpu_exception_handler(cpu_ctx_t *regs)
 void print_register_context(cpu_ctx_t *regs)
 {
     kprintf("\n[IV %lu] -> %s", regs->vector, regs->vector < 32 ? 
-        cpu_exception_strings[regs->vector] : "?\n");
+        cpu_exception_strings[regs->vector] : "?");
 
     if (regs->vector == 8 || regs->vector == 10 || regs->vector == 11 || regs->vector == 12
         || regs->vector == 13 || regs->vector == 14 || regs->vector == 17 || regs->vector == 30)
-        kprintf("[ec 0x%lX]:\n\r", regs->error_code);
+        kprintf("[ec 0x%lX]:\n", regs->error_code);
 
-    kprintf("rdi: 0x%p   rsi: 0x%p   rbp: 0x%p   rsp: 0x%p\
+    kprintf("\nrdi: 0x%p   rsi: 0x%p   rbp: 0x%p   rsp: 0x%p\
 \nrbx: 0x%p   rdx: 0x%p   rcx: 0x%p   rax: 0x%p\n",
         regs->rdi, regs->rsi, regs->rbp, regs->rsp,
         regs->rbx, regs->rdx, regs->rcx, regs->rax);

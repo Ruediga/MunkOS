@@ -36,8 +36,8 @@ void kernel_main(void)
 {
     kprintf("i am t0 (main thread)\n");
 
-    init_pci();
     kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
+    init_pci();
 
     scheduler_kernel_thread_exit();
 }
@@ -120,9 +120,9 @@ void kernel_entry(void)
 
     ps2_init();
 
-    scheduler_add_kernel_thread(t1);
-    scheduler_add_kernel_thread(t2);
-    scheduler_add_kernel_thread(t3);
+    //scheduler_add_kernel_thread(t1);
+    //scheduler_add_kernel_thread(t2);
+    //scheduler_add_kernel_thread(t3);
 
     scheduler_add_kernel_thread(kernel_main);
 

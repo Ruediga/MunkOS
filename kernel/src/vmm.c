@@ -6,6 +6,8 @@
 #include "cpu.h"
 #include "apic.h"
 
+#include <stdbool.h>
+
 page_map_ctx kernel_pmc = { 0x0 };
 
 struct limine_kernel_address_request kernel_address_request = {
@@ -148,7 +150,8 @@ static void init_kpm(void)
         else if (entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
             for (size_t off = 0; off < ALIGN_UP(entry->base + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
                 uintptr_t base_off_aligned = ALIGN_UP(entry->base + off, PAGE_SIZE);
-                vmm_map_single_page(&kernel_pmc, base_off_aligned + hhdm->offset, base_off_aligned, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE);
+                vmm_map_single_page(&kernel_pmc, base_off_aligned + hhdm->offset, base_off_aligned,
+                    PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_WRITE_THROUGH_CACHING);
             }
         }
         // bootloader reclaimable
@@ -200,13 +203,13 @@ void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t
     release_lock(&map_page_lock);
 }
 
-// remove a mapping AND DEALLOCATES PHYSICAL PAGE!!
-void vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
+// return 1 if successful, 0 if nothing got unmapped
+bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 {
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
-        kpanic(NULL, "Page Mapping couldnt be removed (pt doesn't exist)\n\r");
+        return false;
     }
 
     // free page
@@ -218,6 +221,8 @@ void vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
     pt[pt_index] = 0x0;
 
     tlb_flush();
+
+    return true;
 }
 
 inline void vmm_set_ctx(const page_map_ctx *pmc)

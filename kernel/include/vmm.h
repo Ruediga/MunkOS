@@ -53,6 +53,6 @@ extern page_map_ctx kernel_pmc;
  *  - bits 0 - 11
 */
 void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
-void vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa);
+bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa);
 
 void vmm_set_ctx(const page_map_ctx *pmc);

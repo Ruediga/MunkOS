@@ -64,7 +64,6 @@ void ps2_init(void) {
         ps2_write(0x64, 0xa8);
     }
 
-    // some random ass vector
     interrupts_register_vector(INT_VEC_PS2, (uintptr_t)ps2_kb_handler);
     ioapic_redirect_irq(1, INT_VEC_PS2, smp_request.response->bsp_lapic_id);
     inb(0x60);

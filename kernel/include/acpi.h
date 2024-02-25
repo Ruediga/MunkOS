@@ -192,7 +192,7 @@ struct __attribute__((packed)) acpi_iso {
 
 void parse_acpi(void);
 void *get_sdt(const char signature[static 4]);
-void parse_madt(struct acpi_madt *_madt);
+void parse_madt(volatile struct acpi_madt *_madt);
 
 extern struct limine_rsdp_request rsdp_request;
 
@@ -207,6 +207,6 @@ extern vector_acpi_ioapic_ptr_t ioapics;
 extern vector_acpi_lapic_ptr_t lapics;
 extern vector_acpi_iso_ptr_t isos;
 
-extern struct acpi_fadt *fadt_ptr;
-extern struct acpi_madt *madt_ptr;
-extern struct acpi_mcfg *mcfg_ptr;
+extern volatile struct acpi_fadt *fadt_ptr;
+extern volatile struct acpi_madt *madt_ptr;
+extern volatile struct acpi_mcfg *mcfg_ptr;
