@@ -218,7 +218,7 @@ bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
     }
 
     // unmap page
-    pt[pt_index] = 0x0;
+    pt[pt_index] = 0;
 
     tlb_flush();
 

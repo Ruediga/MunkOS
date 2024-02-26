@@ -127,10 +127,11 @@ void pci_check_device(uint8_t bus, uint8_t dev_slot, uint8_t function)
 
     // if pci bridge:
     if (device->class_code == 0x6 && device->subclass_code == 0x4) {
-        kprintf("found pci to pci bridge with prog_if=%u\n", (uint32_t)device->prog_if);
+        kprintf("found pci to pci bridge with prog_if=%u: ", (uint32_t)device->prog_if);
         uint32_t bus_regs = pci_read(device, 0x18, DOUBLE_WORD);
-        kprintf("    primary=%u, secondary=%u, subordinate=%u\n",
+        kprintf("primary=%u, secondary=%u, subordinate=%u\n",
         bus_regs & 0xFF, (bus_regs >> 8) & 0xFF, (bus_regs >> 16) & 0xFF);
+        pci_scan_bus((bus_regs >> 8) & 0xFF);
     }
 
     pci_devices.push_back(&pci_devices, device);
@@ -180,10 +181,10 @@ void init_pci(void)
         }
     }
 
-    kprintf("  - pci: devices connected [class:subclass:prog_if -> vendor_id:dev_id @ bus:dev:func -> class_string]:\n");
+    kprintf("  - pci: %lu devices connected [class:subclass:prog_if -> vendor_id:dev_id @ bus:dev:func -> class_string]:\n", pci_devices.size);
     for (size_t i = 0; i < pci_devices.size; i++) {
         pci_device *dev = pci_devices.data[i];
-        kprintf("  - %02x:%02x:%02x -> %04x:%04x @ %02x:%02x:%02x -> %s\n",
+        kprintf("  - dev %lu: %02x:%02x:%02x -> %04x:%04x @ %02x:%02x:%02x -> %s\n", i,
             (uint32_t)dev->class_code, (uint32_t)dev->subclass_code, (uint32_t)dev->prog_if,
             (uint32_t)dev->vendor_id, (uint32_t)dev->dev_id,
             (uint32_t)dev->bus, (uint32_t)dev->dev_slot, (uint32_t)dev->function,
@@ -213,13 +214,13 @@ void pci_read_bar(pci_device *dev, struct pci_base_addr_reg_ctx *bar_ctx, int ba
     pci_write(dev, reg_off, base, DOUBLE_WORD);
 
     if (base & 1) {
-        // mmio
-        bar_ctx->is_mmio_bar = true;
+        // not mmio
 
         bar_ctx->base = (void *)(base & (~0b11ul));
         bar_ctx->size = ~(size & (~0b11u)) + 1;
     } else {
-        // not mmio
+        // mmio
+        bar_ctx->is_mmio_bar = true;
 
         // prefetchable?
         if ((base >> 3) & 1) {

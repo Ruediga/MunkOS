@@ -54,6 +54,7 @@
 // for now only support these two
 #define NVME_CNS_NAMESPACE 0x00
 #define NVME_CNS_CONTROLLER 0x01
+#define NVME_CNS_NS_LIST 0x2
 
 #define NVME_CMD_FLAGS_PRPS (0b00 << 14)
 #define NVME_CMD_FLAGS_SGLS_CONTIG_PHYS (0b01 << 14)
@@ -64,7 +65,7 @@
 
 #define NVME_SQE_SIZE 64
 #define NVME_CQE_SIZE 16
-#define nvme_identify_ds_SIZE 4096
+#define NVME_IDENTIFY_DS_SIZE 4096
 
 #define NVME_STATUS_READY 0b1
 
@@ -73,7 +74,7 @@
 #define NVME_CTRLER_TYPE_ADMIN 0x3
 
 #define NVME_PROPERTIES_MQES(prop) (prop->cap & 0xFFFFul)
-#define NVME_PROPERTIES_DSTRD(prop) ((prop->cap & (0xFFFFul << 32)) >> 32)
+#define NVME_PROPERTIES_DSTRD(prop) ((prop->cap >> 32) & 0xFul)
 
 #define NVME_CQE_SUCCESSFUL(cqe) (!(cqe.status >> 1))
 
@@ -200,9 +201,9 @@ typedef union {
 // completion commands layout
 typedef struct {
     uint32_t cmd_specific_0[2];
-    uint16_t sqhd;  // sq head ptr
-    uint16_t sqid;  // sq id
-    uint16_t cid;   // command id
+    uint16_t sqhd;      // sq head ptr
+    uint16_t sqid;      // sq id
+    uint16_t cid;       // command id
     uint16_t status;    // [0] phase bit
 } nvme_ccmd;
 
