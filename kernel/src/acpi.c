@@ -126,8 +126,8 @@ void parse_madt(volatile struct acpi_madt *madt)
         off += madt_hdr->length;
     }
 
-    kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapics.get_size(&ioapics), lapics.get_size(&lapics));
-    if (ioapics.get_size(&ioapics) == 0) {
+    kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapics.size, lapics.size);
+    if (ioapics.size == 0) {
         kpanic(NULL, "Systems without an IOAPIC are not supported!\n");
     }
 }

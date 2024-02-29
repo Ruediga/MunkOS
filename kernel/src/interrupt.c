@@ -112,7 +112,7 @@ void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
 
     // halt other cores
     cpu_local_t *this_cpu = get_this_cpu();
-    kprintf("Halting cores: %lu", this_cpu->id);
+    kprintf("\nHalting cores: %lu", this_cpu->id);
     lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
 
     __asm__ ("hlt");

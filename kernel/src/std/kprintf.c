@@ -28,6 +28,7 @@
 
 #include "kprintf.h"
 #include "cpu.h"
+#include "serial.h"
 
 const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 
@@ -53,12 +54,35 @@ const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
 #define KPRINTF_MAX_BUFFER_SIZE 32
 #endif
 
+#ifdef MUNKOS_VERBOSE_BUILD
+int kprintf_verbose(const char *format, ...)
+{
+    va_list var_args;
+    va_start(var_args, format);
+
+    int ret = kvprintf(format, var_args);
+
+    va_end(var_args);
+
+    return ret;
+}
+#else
+int kprintf_verbose(const char *format, ...)
+{
+    (void)format;
+
+    return 0;
+}
+#endif // MUNKOS_VERBOSE_BUILD
+
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
 k_spinlock_t kprintf_lock;
 static inline void putc_(char c)
 {
     flanterm_write(ft_ctx, &c, 1);
+    // tty1
+    serial_out_char(port_tty1, c);
 }
 
 /*
@@ -240,10 +264,10 @@ int kvprintf(const char* format, va_list var_args)
     acquire_lock(&kprintf_lock);
 
     int total_chars_printed = 0;
-    unsigned int flags = 0, width = 0, precision = 0;
 
     while (*format)
     {
+        unsigned int flags = 0, width = 0, precision = 0;
         // if not %
         if (*format != '%')
         {
@@ -534,8 +558,6 @@ int kvprintf(const char* format, va_list var_args)
             format++;
             break;
         }
-
-        width = 0;
     }
 
     release_lock(&kprintf_lock);

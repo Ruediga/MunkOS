@@ -83,7 +83,7 @@ void pci_write(pci_device *dev, uint32_t reg, uint32_t val, enum pci_rw_size siz
 
 static inline void pci_dev_calc_phys(pci_device *dev)
 {
-    for (size_t i = 0; i < mcfg_entries.get_size(&mcfg_entries); i++) {
+    for (size_t i = 0; i < mcfg_entries.size; i++) {
         mcfg_entry *entry = &mcfg_entries.data[i];
         if (dev->bus < entry->host_start || entry->host_end < dev->bus ) {
             continue;

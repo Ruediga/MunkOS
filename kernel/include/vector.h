@@ -38,8 +38,7 @@
 
 #define __VECTOR_DEFINE_DECLARATIONS_COMMON(T) \
     void __vector_internal_reset_##T(struct CONCAT(vector_##T, _t) *); \
-    void __vector_internal_remove_##T(struct CONCAT(vector_##T, _t) *, size_t); \
-    size_t __vector_internal_get_size_##T(struct CONCAT(vector_##T, _t) *);
+    void __vector_internal_remove_##T(struct CONCAT(vector_##T, _t) *, size_t);
 
 #define __VECTOR_DEFINE_DECLARATIONS(T) \
     __VECTOR_DEFINE_DECLARATIONS_COMMON(T) \
@@ -60,7 +59,6 @@
         void (*reset)(struct CONCAT(vector_##T, _t) *); \
         void (*remove)(struct CONCAT(vector_##T, _t) *, size_t); \
         size_t (*find)(struct CONCAT(vector_##T, _t) *, T); \
-        size_t (*get_size)(struct CONCAT(vector_##T, _t) *); \
     } CONCAT(vector_##T, _t);
 
 #define __VECTOR_DEFINE_TYPE_NON_NATIVE(T) \
@@ -72,11 +70,10 @@
         void (*reset)(struct CONCAT(vector_##T, _t) *); \
         void (*remove)(struct CONCAT(vector_##T, _t) *, size_t); \
         size_t (*find)(struct CONCAT(vector_##T, _t) *, T *); \
-        size_t (*get_size)(struct CONCAT(vector_##T, _t) *); \
     } CONCAT(vector_##T, _t);
 
 #define VECTOR_INIT(T) { NULL, 0ul, 0ul, __vector_internal_push_back_##T, __vector_internal_reset_##T, \
-    __vector_internal_remove_##T, __vector_internal_find_##T, __vector_internal_get_size_##T }
+    __vector_internal_remove_##T, __vector_internal_find_##T }
 
 #define VECTOR_REINIT(vec, T) do { \
     vec.data = NULL; \
@@ -85,7 +82,6 @@
     vec.reset = __vector_internal_reset_##T; \
     vec.remove = __vector_internal_remove_##T; \
     vec.find = __vector_internal_find_##T; \
-    vec.get_size = __vector_internal_get_size_##T; \
 } while(0)
 
 #define __VECTOR_DEFINE_PUSH_BACK(T) \
@@ -148,14 +144,8 @@
         (vec)->size = (vec)->capacity = 0; \
     }
 
-#define __VECTOR_DEFINE_GET_SIZE(T) \
-    inline size_t __vector_internal_get_size_##T(CONCAT(vector_##T, _t) *vec) { \
-        return vec->size; \
-    }
-
 #define __VECTOR_TMPL_TYPE_COMMON(T) \
-    __VECTOR_DEFINE_RESET(T) \
-    __VECTOR_DEFINE_GET_SIZE(T)
+    __VECTOR_DEFINE_RESET(T)
 
 #define __VECTOR_TMPL_TYPE_NON_NATIVE_EXTRA(T) \
     __VECTOR_DEFINE_REMOVE_NON_NATIVE(T) \

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vector.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -118,11 +120,17 @@ typedef union {
         uint16_t cid;   // combined with qid, unique id
 
         uint32_t nsid;  // namespace id
-        uint64_t cmd_specific_0;
+        uint32_t dword_2;
+        uint32_t dword_3;
         uint64_t mptr;
         uint64_t dptr_prp1; // dptrs page aligned
         uint64_t dptr_prp2;
-        uint32_t cmd_specific_1[6];
+        uint32_t dword_10;
+        uint32_t dword_11;
+        uint32_t dword_12;
+        uint32_t dword_13;
+        uint32_t dword_14;
+        uint32_t dword_15;
     } common_command_format_entry;
 
     // admin commands
@@ -163,7 +171,8 @@ typedef union {
         uint8_t flags;
         uint16_t cid;
 
-        uint32_t reserved_0[3];
+        uint32_t nsid;
+        uint32_t reserved_0[2];
         uint64_t unused_0;
         uint64_t prp1;
         uint64_t prp2;
@@ -177,8 +186,23 @@ typedef union {
         uint32_t uuid;
         uint32_t reserved_4;
     } identify;
+    struct {
+        uint8_t opc;
+        uint8_t flags;
+        uint16_t cid;
 
-    // io commands
+        uint32_t unused[5];
+        uint64_t dptr_prp1;
+        uint64_t dptr_prp2;
+        uint32_t dword_10;
+        uint32_t dword_11;
+        uint32_t dword_12;
+        uint32_t dword_13;
+        uint32_t dword_14;
+        uint32_t dword_15;
+    } set_features;
+
+    // io commands (add write zeroes and copy?)
     struct {
         uint8_t opc;
         uint8_t flags;
@@ -196,20 +220,58 @@ typedef union {
         uint16_t elbatm;
         uint16_t elbat;
     } compare;
-} nvme_scmd;
+    struct {
+        uint8_t opc;
+        uint8_t flags;
+        uint16_t cid;
+
+        uint32_t nsid;
+        uint64_t e_to_e_protinfo_0;
+        uint64_t mptr;
+        uint64_t prp1;
+        uint64_t prp2;
+        uint64_t slba;
+        uint16_t nlb;
+        uint16_t flags_2;
+        uint32_t dsm;   // some opt flags
+        uint32_t e_to_e_protinfo_1;
+        uint16_t elbat;
+        uint16_t elbatm;
+    } read;
+    struct {
+        uint8_t opc;
+        uint8_t flags;
+        uint16_t cid;
+
+        uint32_t nsid;
+        uint64_t e_to_e_protinfo_0;
+        uint64_t mptr;
+        uint64_t prp1;
+        uint64_t prp2;
+        uint64_t slba;
+        uint16_t nlb;
+        uint16_t flags_2;
+        uint16_t dsm;   // some opt flags
+        uint16_t dspec;
+        uint32_t e_to_e_protinfo_1;
+        uint16_t elbat;
+        uint16_t elbatm;
+    } write;
+
+} nvme_scmd_t;
 
 // completion commands layout
 typedef struct {
-    uint32_t cmd_specific_0[2];
+    uint32_t dword_0;
+    uint32_t dword_1;
     uint16_t sqhd;      // sq head ptr
     uint16_t sqid;      // sq id
     uint16_t cid;       // command id
     uint16_t status;    // [0] phase bit
-} nvme_ccmd;
+} nvme_ccmd_t;
 
 struct nvme_submission_queue {
-    void *_metadata_pointer_unaligned;
-    volatile nvme_scmd *data;
+    volatile nvme_scmd_t *data;
     volatile uint32_t *sqt; // db
     size_t tail;
     // each cqe informs us about the new sqhd for the corresponding sqe that was consumed for this cqe
@@ -219,8 +281,7 @@ struct nvme_submission_queue {
 };
 
 struct nvme_completion_queue {
-    void *_metadata_pointer_unaligned;
-    volatile nvme_ccmd *data;
+    volatile nvme_ccmd_t *data;
     volatile uint32_t *cqh; // db
     size_t head;
     uint8_t phase;  // swaps between 0 and 1 every wraparound; zero-initialized
@@ -263,7 +324,7 @@ union nvme_identify_ds {
         uint16_t crdt1;
         uint16_t crdt2;
         uint16_t crdt3;
-        uint8_t reserved_1[105];
+        uint8_t reserved_1[106];
         uint8_t reserved_2[13];
         uint8_t nvmsr;
         uint8_t vwci;
@@ -305,7 +366,7 @@ union nvme_identify_ds {
         uint32_t nanagrpid;
         uint32_t pels;
         uint16_t domain_id;
-        uint16_t reserved_3;
+        uint8_t reserved_3[10];
         uint64_t megcap[2];
         uint8_t reserved_4[128];
 
@@ -315,7 +376,7 @@ union nvme_identify_ds {
         uint16_t maxcmd;
         uint32_t nn;    // number of namespaces
         uint16_t oncs;
-        uint32_t fuses[3];
+        uint16_t fuses;
         uint8_t fna;
         uint8_t vwc;
         uint16_t awun;
@@ -326,7 +387,7 @@ union nvme_identify_ds {
         uint16_t cpy_descr_fmts_supported;
         uint32_t sgls;
         uint32_t mnan;
-        uint8_t maxdna[6];
+        uint8_t maxdna[16];
         uint32_t maxcna;
         uint8_t reserved_5[204];
         char subnqn[256];
@@ -358,10 +419,70 @@ union nvme_identify_ds {
         uint8_t vendor_specific[1024];
     } ctrler;
 
-    struct ns {
-        uint8_t u[4096];
-    } ns;
+    struct {
+        uint64_t nsze;
+        uint64_t ncap;
+        uint64_t nuse;
+        uint8_t nsfeat;
+        uint8_t nlbaf;
+        uint8_t flbas;
+        uint8_t mc;
+        uint8_t dpc;
+        uint8_t dps;
+        uint8_t nmic;
+        uint8_t rescap;
+        uint8_t fpi;
+        uint8_t dlfeat;
+        uint16_t nawun;
+        uint16_t nawupf;
+        uint16_t nacwu;
+        uint16_t nabsn;
+        uint16_t nabo;
+        uint16_t nabspf;
+        uint16_t noiob;
+        uint64_t nvmcap[2];
+        uint16_t npwg;
+        uint16_t npwa;
+        uint16_t npdg;
+        uint16_t npda;
+        uint16_t nows;
+        uint16_t mssrl;
+        uint32_t mcl;
+        uint8_t msrc;
+        uint8_t reserved_0[11];
+        uint32_t anagrpid;
+        uint8_t reserved_1[3];
+        uint8_t nsattr;
+        uint16_t nvmsetid;
+        uint16_t endgid;
+        uint64_t nguid[2];
+        uint64_t eui64;
+
+        // lba formats list
+        struct {
+            uint16_t ms;
+            uint8_t lbads;
+            uint8_t rp;
+        } lbaf[64];
+        uint8_t vendor_specific_0[3712];
+    } namespace;
+
+    struct {
+        uint32_t ids[1024];
+    } active_nsid_list;
 };
+
+typedef struct nvme_ns_ctx {
+    struct nvme_controller *controller; // reference to this controller
+    uint32_t nsid;
+    union nvme_identify_ds *ident;
+    struct nvme_queue_ctx queue;
+    uint64_t lba_size;
+    uint64_t mdts;
+    uint64_t cap;
+} nvme_ns_ctx;
+
+VECTOR_DECL_TYPE_NON_NATIVE(nvme_ns_ctx)
 
 // single pci device controller: [TODO], the driver should be able to handle n amount
 // of them and have a generic implementation to the gdi over the pci_device layer
@@ -369,9 +490,12 @@ struct nvme_controller {
     volatile struct nvme_controller_properties *properties; // pci(e) bar0 registers
     struct nvme_queue_ctx aq;   // admin queue for this controller (each controller type has one)
     union nvme_identify_ds *ctrler_identify;
-    size_t mdts;    // max data transfer size (bytes), ~0ul if no max size
     uint16_t cntlid;
+    vector_nvme_ns_ctx_t active_ns;
+    size_t queue_count; // max queues this controller is allowed to own
 };
 
 void init_nvme_controller(pci_device *dev);
-bool nvme_queue_submit_single_cmd(struct nvme_queue_ctx *queue, nvme_scmd *cmd);
+bool nvme_queue_submit_single_cmd(struct nvme_queue_ctx *queue, nvme_scmd_t *cmd);
+bool nvme_issue_cmd_read_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lba, uint64_t blocks, void *buffer);
+bool nvme_issue_cmd_write_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lba, uint64_t blocks, void *buffer);

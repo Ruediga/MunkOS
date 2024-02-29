@@ -21,6 +21,8 @@
 #include "pit.h"
 #include "scheduler.h"
 #include "pci.h"
+#include "serial.h"
+#include "nvme.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -74,6 +76,8 @@ void kernel_entry(void)
     // flanterm (https://github.com/mintsuki/flanterm)
     ft_ctx = flanterm_fb_simple_init(
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
+
+    init_serial();
 
     kprintf("%s performing compatibility check...\n\r", kernel_okay_string);
     cpuid_common(&cpuid_data);

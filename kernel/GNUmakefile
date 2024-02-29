@@ -57,8 +57,10 @@ override CFLAGS += \
     -mno-sse \
     -mno-sse2 \
     -mno-red-zone \
-    -DMUNKOS_DEBUG_BUILD
+    -DMUNKOS_DEBUG_BUILD \
+    -DMUNKOS_VERBOSE_BUILD
     # built for debug: -DMUNKOS_DEBUG_BUILD
+    # built so verbose printing etc work: -DMUNKOS_VERBOSE_BUILD
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \

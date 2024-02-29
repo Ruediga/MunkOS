@@ -7,8 +7,11 @@
 #include "apic.h"
 
 #include <stdbool.h>
+#include <cpuid.h>
 
 page_map_ctx kernel_pmc = { 0x0 };
+static uint64_t phys_addr_width = 0;
+static uint64_t lin_addr_width = 0;
 
 struct limine_kernel_address_request kernel_address_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
@@ -16,12 +19,21 @@ struct limine_kernel_address_request kernel_address_request = {
 };
 struct limine_kernel_address_response *kernel_address;
 
+static k_spinlock_t map_page_lock;
+
 static uint64_t *get_below_pml(uint64_t *pml_pointer, uint64_t index, bool force);
 static uint64_t *pml4_to_pt(uint64_t *pml4, uint64_t va, bool force);
 static void init_kpm();
 
 void init_vmm(void)
 {
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+    // leaf 0x80000008: processor information
+    __get_cpuid(0x80000008, &eax, &ebx, &ecx, &edx);
+    phys_addr_width = eax & 0xFF;
+    lin_addr_width = (eax >> 8) & 0xFF;
+    kprintf("  - vmm: phys_addr_width: %lu / lin_addr_width: %lu\n", phys_addr_width, lin_addr_width);
+
     init_kpm();
 }
 
@@ -182,8 +194,6 @@ static void init_kpm(void)
     tlb_flush();
 }
 
-static k_spinlock_t map_page_lock;
-
 // [TODO] free unused pages holding page tables                 |
 // and write a proper range based allocator because wtf is this v
 // maps a page size aligned VA to a page size aligned PA
@@ -206,9 +216,11 @@ void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t
 // return 1 if successful, 0 if nothing got unmapped
 bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 {
+    acquire_lock(&map_page_lock);
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
+        release_lock(&map_page_lock);
         return false;
     }
 
@@ -222,7 +234,18 @@ bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 
     tlb_flush();
 
+    release_lock(&map_page_lock);
+
     return true;
+}
+
+uintptr_t virt2phys(page_map_ctx *pmc, uintptr_t virt)
+{
+    size_t pt_index = (virt & (0x1fful << 12)) >> 12;
+    uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, virt, false);
+    uint64_t mask = ((1ull << phys_addr_width) - 1) & ~0xFFF;
+
+    return (pt[pt_index] & mask) | (virt & 0xFFF);
 }
 
 inline void vmm_set_ctx(const page_map_ctx *pmc)

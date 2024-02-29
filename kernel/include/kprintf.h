@@ -13,6 +13,7 @@ extern const char *kernel_okay_string;
 // DO NOT TOUCH THIS OUTSIDE OF kpanic()
 extern k_spinlock_t kprintf_lock;
 
+int kprintf_verbose(const char *format, ...);
 int kprintf(const char *format, ...);
 int kvprintf(const char* format, va_list var_args);
 

@@ -48,11 +48,12 @@ extern page_map_ctx kernel_pmc;
  *  - bits 12 - 20
  *  - entries refer to pages
  * 
- * Individual Page:
+ * PTE:
  *  - level 0
  *  - bits 0 - 11
 */
 void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags);
 bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa);
+uintptr_t virt2phys(page_map_ctx *pmc, uintptr_t virt);
 
 void vmm_set_ctx(const page_map_ctx *pmc);

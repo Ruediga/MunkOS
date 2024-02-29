@@ -105,7 +105,7 @@ void init_ioapic(void)
     outb(0xA1, 0xFF);
 
     // should be 4KiB aligned, if not, good luck
-    for (size_t i = 0; i < ioapics.get_size(&ioapics); i++) {
+    for (size_t i = 0; i < ioapics.size; i++) {
         vmm_map_single_page(&kernel_pmc, ALIGN_DOWN(((uintptr_t)ioapics.data[i]->io_apic_address + hhdm->offset), PAGE_SIZE),
             ALIGN_DOWN((uintptr_t)ioapics.data[i]->io_apic_address, PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
@@ -126,7 +126,7 @@ uint32_t ioapic_read(struct acpi_ioapic *ioapic, uint32_t reg)
 void ioapic_set_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id, bool unset)
 {
     uint16_t iso_flags = 0;
-    for (size_t i = 0; i < isos.get_size(&isos); i++) {
+    for (size_t i = 0; i < isos.size; i++) {
         // check if motherboard maps "default" irqls differently
         if (isos.data[i]->source_irq == irq) {
             irq = isos.data[i]->global_system_interrupt;
@@ -137,7 +137,7 @@ void ioapic_set_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id, bool unset
 
     struct acpi_ioapic *ioapic = NULL;
     // find the corresponding ioapic for the irq
-    for (size_t i = 0; i < ioapics.get_size(&ioapics); i++) {
+    for (size_t i = 0; i < ioapics.size; i++) {
         if (ioapics.data[i]->global_system_interrupt_base <= irq
             && irq < ioapics.data[i]->global_system_interrupt_base + ((ioapic_read(ioapics.data[i], 0x1) & 0xFF0000) >> 16)) {
             ioapic = ioapics.data[i];

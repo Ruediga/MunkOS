@@ -46,7 +46,7 @@ Currently, I prioritize work on the kernel.
 - [x] Threads & Processes
 - [x] Scheduler
 - [x] PCIe
-- [ ] NVME driver (WIP)
+- [x] NVME driver
 - [ ] GPT / MBR
 - [ ] FAT 32
 - [ ] Userland
