@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vector.h"
+#include "device.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -290,11 +291,14 @@ struct nvme_completion_queue {
 struct nvme_queue_ctx {
     // store the pointers to where we allocated from, so we can free() them accordingly
     // don't read from doorbells
-    // optimization note: implement multiple write and poll aswell as advanced free entry tracking
+    // optimization note: implement multiple write and poll 
     struct nvme_submission_queue sq;
     struct nvme_completion_queue cq;
     size_t entries;
     uint16_t queue_id;
+    // EXPERIMENTAL: this is untested / may not work: For each prp list created,
+    // set prp_list_container[cmdid % entries] to the allocated prp_list block (max 1)
+    uintptr_t *prp_list_container;
 };
 
 // controller data structures
@@ -472,11 +476,47 @@ union nvme_identify_ds {
     } active_nsid_list;
 };
 
+#define NVME_NCACHES 1000
+#define NVME_HASHMAP_SIZE NVME_NCACHES    // prime?
+#define NVME_IDX_INV (size_t)-1
+#define NVME_BLOCK_SIZE 512ul
+
+enum nvme_cache_status { NVME_CACHE_DIRTY, NVME_CACHE_VALID, NVME_CACHE_EMPTY };
+
+struct nvme_cache_dll_node {
+    size_t index;   // offset into cache_entry[]
+    struct nvme_cache_dll_node *next;
+    struct nvme_cache_dll_node *prev;
+};
+
+struct nvme_cache_entry {
+    struct nvme_cache_dll_node *lruref; // keep reference to this element in the lru dll
+    enum nvme_cache_status status;       // DIRTY, VALID, EMPTY
+    size_t bid;     // this_lba = (bid * BLOCK_SIZE) / LBA_SIZE
+    uint8_t *block;    // underlying cache
+};
+
+// values INVALID mean empty
+struct nvme_cache_hashmap_entry {
+    size_t bid;
+    size_t index;
+    struct nvme_cache_hashmap_entry *next;
+};
+
+struct nvme_cache_container {
+    struct nvme_cache_entry cache[NVME_NCACHES];
+    struct nvme_cache_hashmap_entry hashmap[NVME_HASHMAP_SIZE];
+    struct nvme_cache_dll_node *head;
+    struct nvme_cache_dll_node *tail;
+};
+
 typedef struct nvme_ns_ctx {
     struct nvme_controller *controller; // reference to this controller
     uint32_t nsid;
     union nvme_identify_ds *ident;
+    // 1 queue = one 
     struct nvme_queue_ctx queue;
+    struct nvme_cache_container cache_container;
     uint64_t lba_size;
     uint64_t mdts;
     uint64_t cap;
@@ -484,7 +524,7 @@ typedef struct nvme_ns_ctx {
 
 VECTOR_DECL_TYPE_NON_NATIVE(nvme_ns_ctx)
 
-// single pci device controller: [TODO], the driver should be able to handle n amount
+// single pci device controller: [TODO], the driver should handle more (register devices etc)
 // of them and have a generic implementation to the gdi over the pci_device layer
 struct nvme_controller {
     volatile struct nvme_controller_properties *properties; // pci(e) bar0 registers
@@ -496,6 +536,3 @@ struct nvme_controller {
 };
 
 void init_nvme_controller(pci_device *dev);
-bool nvme_queue_submit_single_cmd(struct nvme_queue_ctx *queue, nvme_scmd_t *cmd);
-bool nvme_issue_cmd_read_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lba, uint64_t blocks, void *buffer);
-bool nvme_issue_cmd_write_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lba, uint64_t blocks, void *buffer);

@@ -243,6 +243,7 @@ uintptr_t virt2phys(page_map_ctx *pmc, uintptr_t virt)
 {
     size_t pt_index = (virt & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, virt, false);
+    if (!pt) return (uintptr_t)NULL;
     uint64_t mask = ((1ull << phys_addr_width) - 1) & ~0xFFF;
 
     return (pt[pt_index] & mask) | (virt & 0xFFF);

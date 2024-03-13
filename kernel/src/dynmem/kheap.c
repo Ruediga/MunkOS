@@ -6,6 +6,7 @@
 #include "memory.h"
 #include "kprintf.h"
 #include "interrupt.h"
+#include "cpu.h"
 
 uint64_t kernel_heap_max_size_pages = 0x0;
 uintptr_t kernel_heap_base_address = 0x0;

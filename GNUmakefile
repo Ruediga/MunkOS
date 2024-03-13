@@ -5,7 +5,8 @@ override IMAGE_NAME := image
 override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 16 --no-reboot --no-shutdown
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off \
 	-D error_log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=b1 \
-	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt
+	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt \
+	#-trace *nvme*
 
 # Convenience macro to reliably declare user overridable variables.
 define DEFAULT_VAR =

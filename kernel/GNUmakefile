@@ -58,7 +58,8 @@ override CFLAGS += \
     -mno-sse2 \
     -mno-red-zone \
     -DMUNKOS_DEBUG_BUILD \
-    -DMUNKOS_VERBOSE_BUILD
+    -DMUNKOS_VERBOSE_BUILD \
+    -Wno-unused-function
     # built for debug: -DMUNKOS_DEBUG_BUILD
     # built so verbose printing etc work: -DMUNKOS_VERBOSE_BUILD
 

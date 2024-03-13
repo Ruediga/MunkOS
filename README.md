@@ -46,9 +46,12 @@ Currently, I prioritize work on the kernel.
 - [x] Threads & Processes
 - [x] Scheduler
 - [x] PCIe
-- [x] NVME driver
+- [x] NVME driver (blocking caching, unnecessary reads)
 - [ ] GPT / MBR
-- [ ] FAT 32
+- [ ] ext2
+- [ ] devices
+- [ ] VFS
+- [ ] devtmpfs
 - [ ] Userland
 
 
@@ -62,7 +65,7 @@ vmm tlb shootdown not smp core synced
 
 vmm locks
 
-not fun nvme/pci bugs
+pci multiple bridges?
 
 #### Features
 
