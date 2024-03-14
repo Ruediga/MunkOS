@@ -46,13 +46,14 @@ Currently, I prioritize work on the kernel.
 - [x] Threads & Processes
 - [x] Scheduler
 - [x] PCIe
-- [x] NVME driver (blocking caching, unnecessary reads)
-- [ ] GPT / MBR
+- [x] NVME driver
+- [x] GPT / MBR
+- [ ] FAT
 - [ ] ext2
-- [ ] devices
-- [ ] VFS
-- [ ] devtmpfs
-- [ ] Userland
+- [-] devices
+- [-] VFS
+- [-] devtmpfs
+- [ ] Userspace
 
 
 ### TODO

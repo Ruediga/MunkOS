@@ -1,132 +1,77 @@
 [2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU NVMe Ctrl 0 1" from PciRoot(0x0)/Pci(0x5,0x0)/NVMe(0x1,00-00-00-00-00-00-00-00)
 BdsDxe: starting Boot0001 "UEFI QEMU NVMe Ctrl 0 1" from PciRoot(0x0)/Pci(0x5,0x0)/NVMe(0x1,00-00-00-00-00-00-00-00)
 [2J[01;01H[01;01H[2J[01;01H[01;01H[1;30m[[0;32mOkay[1;30m][0m performing compatibility check...
-  - cpuid: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
+
+  - cpuid: 11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz
 [1;30m[[0;32mOkay[1;30m][0m framebuffer width: 1280, heigth: 800
-[1;30m[[0;32mOkay[1;30m][0m setting up gdt...
-[1;30m[[0;32mOkay[1;30m][0m enabling interrupts...
-[1;30m[[0;32mOkay[1;30m][0m initializing pmm...
-  - pmm: total memory: 6144MiB, of which 4021MiB usable
+
+[1;30m[[0;32mOkay[1;30m][0m setting up gdt...
+
+[1;30m[[0;32mOkay[1;30m][0m enabling interrupts...
+
+[1;30m[[0;32mOkay[1;30m][0m initializing pmm...
+
+  - pmm: total memory: 6144MiB, of which 4021MiB usable
 [1;30m[[0;32mOkay[1;30m][0m initializing vmm && kernel pm...
-  - vmm: phys_addr_width: 39 / lin_addr_width: 48
+
+  - vmm: phys_addr_width: 39 / lin_addr_width: 48
   - kheap: 255 MiB dynamic memory available
 [1;30m[[0;32mOkay[1;30m][0m allocating space for kernel heap...
-[1;30m[[0;32mOkay[1;30m][0m parsing acpi tables...
-  - acpi: FACP found at (pa) 0x000000007F977000 of length 244
+
+[1;30m[[0;32mOkay[1;30m][0m parsing acpi tables...
+
+  - acpi: FACP found at (pa) 0x000000007F977000 of length 244
   - acpi: APIC found at (pa) 0x000000007F976000 of length 240
   - acpi: MCFG found at (pa) 0x000000007F974000 of length 60
   - acpi: found 1 ioapic(s) and 16 lapic(s)
 [1;30m[[0;32mOkay[1;30m][0m setting up the ioapic...
-[1;30m[[0;32mOkay[1;30m][0m scheduling initialized...
-[1;30m[[0;32mOkay[1;30m][0m enabling smp...
-  - cpu 0: lapic_id=0, bus_frequency=983MHz booted up
-  - cpu 10: lapic_id=10, bus_frequency=967MHz booted up
-  - cpu 6: lapic_id=6, bus_frequency=1041MHz booted up
-  - cpu 4: lapic_id=4, bus_frequency=6148914549732MHz booted up
-  - cpu 7: lapic_id=7, bus_frequency=1024MHz booted up
-  - cpu 8: lapic_id=8, bus_frequency=967MHz booted up
-  - cpu 12: lapic_id=12, bus_frequency=967MHz booted up
-  - cpu 9: lapic_id=9, bus_frequency=967MHz booted up
-  - cpu 1: lapic_id=1, bus_frequency=968MHz booted up
-  - cpu 11: lapic_id=11, bus_frequency=967MHz booted up
-  - cpu 3: lapic_id=3, bus_frequency=967MHz booted up
-  - cpu 13: lapic_id=13, bus_frequency=967MHz booted up
-  - cpu 5: lapic_id=5, bus_frequency=968MHz booted up
+
+[1;30m[[0;32mOkay[1;30m][0m scheduling initialized...
+
+[1;30m[[0;32mOkay[1;30m][0m enabling smp...
+
+  - cpu 0: lapic_id=0, bus_frequency=1002MHz booted up
   - cpu 15: lapic_id=15, bus_frequency=967MHz booted up
+  - cpu 12: lapic_id=12, bus_frequency=967MHz booted up
   - cpu 14: lapic_id=14, bus_frequency=967MHz booted up
-  - cpu 2: lapic_id=2, bus_frequency=969MHz booted up
+  - cpu 9: lapic_id=9, bus_frequency=967MHz booted up
+  - cpu 6: lapic_id=6, bus_frequency=970MHz booted up
+  - cpu 3: lapic_id=3, bus_frequency=970MHz booted up
+  - cpu 8: lapic_id=8, bus_frequency=967MHz booted up
+  - cpu 5: lapic_id=5, bus_frequency=967MHz booted up
+  - cpu 4: lapic_id=4, bus_frequency=967MHz booted up
+  - cpu 11: lapic_id=11, bus_frequency=969MHz booted up
+  - cpu 2: lapic_id=2, bus_frequency=964MHz booted up
+  - cpu 1: lapic_id=1, bus_frequency=967MHz booted up
+  - cpu 13: lapic_id=13, bus_frequency=967MHz booted up
+  - cpu 10: lapic_id=10, bus_frequency=967MHz booted up
+  - cpu 7: lapic_id=7, bus_frequency=969MHz booted up
   - successfully booted up all 16 cores
 [1;30m[[0;32mOkay[1;30m][0m redirecting pit...
-Adding new kernel thread...
-ktask->tid = 0 (FFFF8B61000025C0)
-bsp core waiting, active threads: 1
+
+Adding new kernel thread...
+ktask->tid = 0 (FFFF8AC9000025C0)
+Beginning stacktrace...
+table.addr=0xFFFFFFFF80000000,
+      addr=0xFFFFFFFFA3D8570C
+
+
+[41m<-- KERNEL PANIC -->
+
+[IV 14] -> Page Fault, [ec 0x2]:
+
+rdi: 0xFFFFFFFFA7D9B6F0   rsi: 0xFFFF8AC7FFC4BF77   rbp: 0xFFFF8AC7FFC4BFD0   rsp: 0xFFFF8AC7FFC4BFD8
+rbx: 0xFFFF8AC7FFC59000   rdx: 0x0000000000000037   rcx: 0xFFFFFFFFFFFFFFFF   rax: 0x0000000000000037
 i am t0 (main thread)
+r8:  0xFFFFFFFFA41315E4   r9:  0x0000000000000010   r10: 0x00000000000CD1E7   r11: 0x0000000000000004
+r12: 0xFFFFFFFFA7D9B5E0   r13: 0x0000000000000000   r14: 0x0000000000000000   r15: 0x0000000000000000
 [1;30m[[0;32mOkay[1;30m][0m scanned pci(e) bus for devices...
-  - pci: found segment 0 (PCIe bus: start = 0; end = 255)
-found pci to pci bridge with prog_if=0: primary=0, secondary=1, subordinate=1
-found pci to pci bridge with prog_if=0: primary=0, secondary=2, subordinate=2
-  - pci: 10 devices connected [class:subclass:prog_if -> vendor_id:dev_id @ bus:dev:func -> class_string]:
-  - dev 0: 06:00:00 -> 8086:29c0 @ 00:00:00 -> Bridge device
-  - dev 1: 03:00:00 -> 1af4:1050 @ 00:01:00 -> Display controller
-  - dev 2: 02:00:00 -> 8086:10d3 @ 00:02:00 -> Network controller
-  - dev 3: 06:04:00 -> 1b36:0001 @ 00:03:00 -> Bridge device
-  - dev 4: 06:04:00 -> 1b36:0001 @ 00:04:00 -> Bridge device
-  - dev 5: 01:08:02 -> 1b36:0010 @ 00:05:00 -> Mass storage controller
-  - pci: initializing nvme driver...
-nvme: software progress marker supported: 16
-nvme: cqe failed!
-cid = 0, phase = 1, status = 16653 [sct=0x1, sc=0xD], sqid = 0
-nvme: [probably] non-fatal error: software progress marker could not be saved or another error occured
-NVME_INIT: reserved 1 queues
-nvme: maximum transfer size 0x80000
-nvme: namespace: nsze=131072 lb; ncap=131072 / nuse=131072; nlbaf=7; flbas=0
-nvme: lba_size=512, cap=131072
-NVME_INIT: initialized nvme controller->DEVICE
-Read block 1 from disk
-Read block 2 from disk
-  - vfs::devfs::partition: found partition nvme0n1p1 [start=1048576, length=66043392]
-read: found cached block 2 at index 1
-read: found cached block 2 at index 1
-read: found cached block 2 at index 1
-Read block 3 from disk
-read: found cached block 3 at index 2
-read: found cached block 3 at index 2
-read: found cached block 3 at index 2
-Read block 4 from disk
-read: found cached block 4 at index 3
-read: found cached block 4 at index 3
-read: found cached block 4 at index 3
-Read block 5 from disk
-read: found cached block 5 at index 4
-read: found cached block 5 at index 4
-read: found cached block 5 at index 4
-Read block 6 from disk
-read: found cached block 6 at index 5
-read: found cached block 6 at index 5
-read: found cached block 6 at index 5
-Read block 7 from disk
-read: found cached block 7 at index 6
-read: found cached block 7 at index 6
-read: found cached block 7 at index 6
-Read block 8 from disk
-read: found cached block 8 at index 7
-read: found cached block 8 at index 7
-read: found cached block 8 at index 7
-Read block 9 from disk
-read: found cached block 9 at index 8
-read: found cached block 9 at index 8
-read: found cached block 9 at index 8
-Read block 10 from disk
-read: found cached block 10 at index 9
-read: found cached block 10 at index 9
-read: found cached block 10 at index 9
-Read block 11 from disk
-read: found cached block 11 at index 10
-read: found cached block 11 at index 10
-read: found cached block 11 at index 10
-Read block 12 from disk
-read: found cached block 12 at index 11
-read: found cached block 12 at index 11
-read: found cached block 12 at index 11
-  - dev 6: 01:08:02 -> 1b36:0010 @ 00:06:00 -> Mass storage controller
-  - pci: initializing nvme driver...
-nvme: software progress marker supported: 16
-nvme: cqe failed!
-cid = 0, phase = 1, status = 16653 [sct=0x1, sc=0xD], sqid = 0
-nvme: [probably] non-fatal error: software progress marker could not be saved or another error occured
-NVME_INIT: reserved 1 queues
-nvme: maximum transfer size 0x80000
-nvme: namespace: nsze=32768 lb; ncap=32768 / nuse=32768; nlbaf=7; flbas=0
-nvme: lba_size=512, cap=32768
-NVME_INIT: initialized nvme controller->DEVICE
-Read block 1 from disk
-Read block 0 from disk
-  - vfs::devfs::partition: unsupported partition type
-  - dev 7: 06:01:00 -> 8086:2918 @ 00:1f:00 -> Bridge device
-  - dev 8: 01:06:01 -> 8086:2922 @ 00:1f:02 -> Mass storage controller
-  - dev 9: 0c:05:00 -> 8086:2930 @ 00:1f:03 -> Serial bus controllers
-freed thread (FFFF8B61000025C0) successfully
-He he he
-He he he
-He he he
-He he he
+
+cr0: 0x0000000080010011   cr2: 0x0000000000000037   cr3: 0x0000000000033000   cr4: 0x0000000000000020
+  - pci: found segment 0 (PCIe bus: start = 0; end = 255)
+ss: 0x0000000000000010    cs: 0x0000000000000008    ds: 0x0000000000000010    es: 0x0000000000000010
+found pci to pci bridge with prog_if=0: RIP: 0xFFFF8AC7FFC4BFF0   EFLAGS: 0x10000000000010011
+
+primary=0, secondary=1, subordinate=1
+
+Halting cores: 0, 2, 15, 4, 7, 1, 8, 13, 9, 5, 12, 11, 14, 3, 10, 6

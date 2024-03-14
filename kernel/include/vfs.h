@@ -59,7 +59,7 @@ struct vfs_vattr {
 
 // a filesystem that's been mounted to our vfs
 struct vfs_fs {
-    struct vfs_fs *vfs_next;            // list of vfs_fs mounted insidehis vfs_fs
+    struct vfs_fs *vfs_next;            // list of vfs_fs mounted inside this vfs_fs
     struct vfs_fs_ops *vfs_op;
     struct vfs_vnode *vfs_vnodecovered; // covered vnode
     size_t vfs_flag;

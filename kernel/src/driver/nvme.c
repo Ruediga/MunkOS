@@ -739,6 +739,7 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
 // (planned) Avoid caching with huge batched workloads and read them asynchronously
 int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
 {
+    acquire_lock(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially copy cacheblock into buffer
@@ -770,6 +771,7 @@ int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
+    release_lock(&dev->lock);
     return bytes_read;
 }
 
@@ -777,6 +779,7 @@ fail:
 // (planned) Avoid caching with huge batched workloads and write them asynchronously
 int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
 {
+    acquire_lock(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially write buffer into cacheblock
@@ -809,5 +812,6 @@ int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
+    release_lock(&dev->lock);
     return bytes_written;
 }

@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "vfs.h"
+#include "cpu.h"
 
 // should be equal to max inode name length
 #define DEVICE_NAME_LENGTH 256
@@ -26,6 +27,7 @@ struct device {
     enum dev_type type;     // BLK or CHR
     size_t flags;           // nothing yet
     char name[DEVICE_NAME_LENGTH];
+    k_spinlock_t lock;      // may be locked at any time
     size_t bsize;           // block size
     size_t bcount;          // blocks in partition
     // each device driver has to implement these and then register the device in the devtmpfs.

@@ -54,9 +54,8 @@ void partition_disk_device(struct device *vdisk)
         pos = lba1->guid_pea_start_lba * vdisk->bsize;
         struct gpt_partition_table_entry *entry = kmalloc(lba1->pea_entry_size);
 
-        for (size_t i = 0; i < lba1->partentries_count; i++) {
+        for (size_t i = 0; i < lba1->partentries_count; i++, pos += lba1->pea_entry_size) {
             vdisk->read(vdisk, entry, pos, lba1->pea_entry_size);
-            pos += lba1->pea_entry_size;
 
             if (!entry->part_type_guid_low && !entry->part_type_guid_high) {
                 continue;

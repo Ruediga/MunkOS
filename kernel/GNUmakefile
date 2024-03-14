@@ -24,7 +24,7 @@ override DEFAULT_LD := ld
 $(eval $(call DEFAULT_VAR,LD,$(DEFAULT_LD)))
 
 # User controllable C flags.
-override DEFAULT_CFLAGS := -g -O2 -pipe
+override DEFAULT_CFLAGS := -O2 -pipe
 $(eval $(call DEFAULT_VAR,CFLAGS,$(DEFAULT_CFLAGS)))
 
 # User controllable C preprocessor flags. We set none by default.
@@ -59,9 +59,11 @@ override CFLAGS += \
     -mno-red-zone \
     -DMUNKOS_DEBUG_BUILD \
     -DMUNKOS_VERBOSE_BUILD \
+	-fno-omit-frame-pointer \
     -Wno-unused-function
     # built for debug: -DMUNKOS_DEBUG_BUILD
     # built so verbose printing etc work: -DMUNKOS_VERBOSE_BUILD
+	# -fno-omit-frame-pointer: for stacktrace, maintains frameptr
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
@@ -99,12 +101,18 @@ override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
 all: bin/$(KERNEL_NAME)
 
 src/limine.h:
-	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
+    curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
-# Link rules for the final kernel executable.
+# generate the final kernel executable.
+# for now, stack tracing is implemented by linking the kernel executable,
+# extracting the required symbols from it, saving these into an array
+# and finally recompiling with the symbols included
 bin/$(KERNEL_NAME): GNUmakefile linker.ld $(OBJ)
 	mkdir -p "$$(dirname $@)"
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
+	python ../prepsymboltable.py bin/symboltable.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c bin/symboltable.c -o obj/symboltable.o
+	$(LD) $(OBJ) $(LDFLAGS) obj/symboltable.o -o $@
 
 # Include header dependencies.
 -include $(HEADER_DEPS)

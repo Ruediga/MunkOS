@@ -23,6 +23,7 @@
 #include "pci.h"
 #include "serial.h"
 #include "nvme.h"
+#include "stacktrace.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -129,6 +130,8 @@ void kernel_entry(void)
     //scheduler_add_kernel_thread(t3);
 
     scheduler_add_kernel_thread(kernel_main);
+
+    stacktrace();
 
     kprintf("bsp core waiting, active threads: %lu\n", kernel_task->threads.size);
     wait_for_scheduling();
