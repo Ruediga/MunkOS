@@ -36,7 +36,7 @@ static void nvme_cmdset_struct_verify_size()
     if (sizeof(temp2.active_nsid_list) != NVME_IDENTIFY_DS_SIZE) failed = true;
     if (sizeof(temp2.namespace) != NVME_IDENTIFY_DS_SIZE) failed = true;
 
-    if (failed) kpanic(NULL, "NVME_INIT: structure size check failed:\n");
+    if (failed) kpanic(0, NULL, "NVME_INIT: structure size check failed:\n");
 }
 #endif // MUNKOS_DEBUG_BUILD
 
@@ -282,7 +282,7 @@ static void nvme_compatibility_check(struct nvme_controller *controller)
     uint64_t mpsmin = POW(2ul, 12 + (((0xFul << 48) & controller->properties->cap) >> 48));
     uint64_t mpsmax = POW(2ul, 12 + (((0xFul << 52) & controller->properties->cap) >> 52));
     if (!(mpsmin <= PAGE_SIZE && mpsmax >= PAGE_SIZE)) {
-        kpanic(NULL, "NVME_INIT: controller doesn't support host page size (mpsmin=%lX, mpsmax=%lX)\n", mpsmin, mpsmax);
+        kpanic(0, NULL, "NVME_INIT: controller doesn't support host page size (mpsmin=%lX, mpsmax=%lX)\n", mpsmin, mpsmax);
     }
 }
 
@@ -369,7 +369,7 @@ static nvme_ccmd_t nvme_queue_poll_single_cqe(struct nvme_queue_ctx *queue)
         if ((status & 1) == queue->cq.phase) break;
         __asm__ ("pause");
     }
-    if (deadlock_count >= 1000000) kpanic(NULL, "nvme driver deadlocked while polling cqe\n");
+    if (deadlock_count >= 1000000) kpanic(0, NULL, "nvme driver deadlocked while polling cqe\n");
 
     nvme_ccmd_t out = queue->cq.data[queue->cq.head];
     queue->sq.head = out.sqhd;
@@ -424,7 +424,7 @@ union nvme_identify_ds *nvme_issue_cmd_identify(struct nvme_controller *controll
     }
 
     if (!nvme_queue_submit_single_cmd(&controller->aq, &cmd)) {
-        kpanic(NULL, "NVME_INIT: failed to identify nvme controller\n");
+        kpanic(0, NULL, "NVME_INIT: failed to identify nvme controller\n");
     }
     nvme_ccmd_t cqe = nvme_queue_poll_single_cqe(&controller->aq);
     if (!NVME_CQE_SUCCESSFUL(cqe)) {
@@ -452,7 +452,7 @@ void init_nvme_controller(pci_device *dev)
     struct pci_base_addr_reg_ctx nvme_pci_bar0 = {0};
     pci_read_bar(dev, &nvme_pci_bar0, 0);
 
-    //if (!nvme_pci_bar0.is_mmio_bar) kpanic(NULL, "NVME_INIT: pci bar0 is not mmio mapped\n");
+    //if (!nvme_pci_bar0.is_mmio_bar) kpanic(0, NULL, "NVME_INIT: pci bar0 is not mmio mapped\n");
     for (uintptr_t ptr = ALIGN_DOWN((uintptr_t)nvme_pci_bar0.base, PAGE_SIZE);
         ptr < ALIGN_UP((uintptr_t)nvme_pci_bar0.base + nvme_pci_bar0.size, PAGE_SIZE); ptr += PAGE_SIZE) {
         vmm_unmap_single_page(&kernel_pmc, ptr + hhdm->offset, false); // do not free page
@@ -462,7 +462,7 @@ void init_nvme_controller(pci_device *dev)
 
     controller->properties = (volatile struct nvme_controller_properties *)((uintptr_t)nvme_pci_bar0.base + hhdm->offset);
 
-    if (!controller->properties->version) kpanic(NULL, "NVME_INIT: invalid controller version\n");
+    if (!controller->properties->version) kpanic(0, NULL, "NVME_INIT: invalid controller version\n");
 
     // compatibility checks
     nvme_compatibility_check(controller);
@@ -480,7 +480,7 @@ void init_nvme_controller(pci_device *dev)
     controller->properties->aqa = (((uint32_t)entries & 0xFFF) - 1) | ((((uint32_t)entries & 0xFFF) - 1) << 16);
 
     // base addresses seem to require cc.mps alignment, 4KiB in this case
-    if (POW(2, 12 + ((controller->properties->cc & (0xF << 7)) >> 7)) != PAGE_SIZE) kpanic(NULL, "NVME_INIT: cc.mps is configured incorrectly\n");
+    if (POW(2, 12 + ((controller->properties->cc & (0xF << 7)) >> 7)) != PAGE_SIZE) kpanic(0, NULL, "NVME_INIT: cc.mps is configured incorrectly\n");
     nvme_init_queue(controller, &controller->aq, 0, entries - 1);
     controller->properties->asq = (uint64_t)controller->aq.sq.data - hhdm->offset;
     controller->properties->acq = (uint64_t)controller->aq.cq.data - hhdm->offset;
@@ -488,13 +488,13 @@ void init_nvme_controller(pci_device *dev)
     // reenable controller
     controller->properties->cc = controller->properties->cc | 0b1;
     while (!(controller->properties->csts & NVME_STATUS_READY)) __asm__ ("pause");
-    if (controller->properties->csts & (1 << 1)) kpanic(NULL, "NVME_INIT: fatal\n");
+    if (controller->properties->csts & (1 << 1)) kpanic(0, NULL, "NVME_INIT: fatal\n");
 
     // register msi-x interrupt [TODO]
 
     // identify ctrler
     controller->ctrler_identify = nvme_issue_cmd_identify(controller, NVME_CNS_CONTROLLER, 0, 0);
-    if (!controller->ctrler_identify) kpanic(NULL, "NVME_INIT: failed to identify nvme controller\n");
+    if (!controller->ctrler_identify) kpanic(0, NULL, "NVME_INIT: failed to identify nvme controller\n");
 
     // is io ctrler?
     if (controller->ctrler_identify->ctrler.cntrltype != NVME_CTRLER_TYPE_IO) {
@@ -519,7 +519,7 @@ void init_nvme_controller(pci_device *dev)
     };
 
     if (!nvme_queue_submit_single_cmd(&controller->aq, &marker_cmd)) {
-        kpanic(NULL, "nvme: failed to send software progress marker cmd\n");
+        kpanic(0, NULL, "nvme: failed to send software progress marker cmd\n");
     }
     nvme_ccmd_t cqe = nvme_queue_poll_single_cqe(&controller->aq);
     if (!NVME_CQE_SUCCESSFUL(cqe)) {
@@ -531,7 +531,7 @@ not_supported:
 
     // identify this cntrlers active nsids
     union nvme_identify_ds *nsid_list = nvme_issue_cmd_identify(controller, NVME_CNS_NS_LIST, 0, 0);
-    if (!nsid_list) kpanic(NULL, "NVME_INIT: Failed to identify namespaces\n");
+    if (!nsid_list) kpanic(0, NULL, "NVME_INIT: Failed to identify namespaces\n");
 
     // reserve each one sq and cq for each namespace (maybe do this per cpu?)
     uint64_t count = next_pow_2(controller->ctrler_identify->ctrler.nn) - 1;
@@ -543,18 +543,18 @@ not_supported:
     };
 
     if (!nvme_queue_submit_single_cmd(&controller->aq, &set_queues_cmd)) {
-        kpanic(NULL, "NVME_INIT: failed to send set queue count cmd\n");
+        kpanic(0, NULL, "NVME_INIT: failed to send set queue count cmd\n");
     }
     nvme_ccmd_t queues_cqe = nvme_queue_poll_single_cqe(&controller->aq);
     if (!NVME_CQE_SUCCESSFUL(queues_cqe)) {
         nvme_debug_cqe_unsuccessful(queues_cqe);
-        kpanic(NULL, "NVME_INIT: set queue count failed, unrecoverable\n");
+        kpanic(0, NULL, "NVME_INIT: set queue count failed, unrecoverable\n");
     }
 
     uint16_t nsqa = (uint16_t)cqe.dword_0 + 1;
     uint16_t ncqa = (uint16_t)(cqe.dword_0 >> 16) + 1;
     if (nsqa != ncqa) {
-        kpanic(NULL, "nvme: couldn't allocate same amount of sq and cq\n");
+        kpanic(0, NULL, "nvme: couldn't allocate same amount of sq and cq\n");
     }
     // zero based
     controller->queue_count = nsqa;
@@ -584,7 +584,7 @@ not_supported:
 
         // record each ns block size, capacity, read-only (not yet implemented)
         union nvme_identify_ds *ns_ident = nvme_issue_cmd_identify(controller, NVME_CNS_NAMESPACE, 0, nsid_list->active_nsid_list.ids[i]);
-        if (!ns_ident) kpanic(NULL, "NVME_INIT: Failed to identify namespace %u\n", nsid_list->active_nsid_list.ids[i]);
+        if (!ns_ident) kpanic(0, NULL, "NVME_INIT: Failed to identify namespace %u\n", nsid_list->active_nsid_list.ids[i]);
 
         nsctx.ident = ns_ident;
 
@@ -646,21 +646,21 @@ not_supported:
         };
 
         if (!nvme_queue_submit_single_cmd(&controller->aq, &ciocq)) {
-            kpanic(NULL, "NVME_INIT: failed to send ciocq cmd\n");
+            kpanic(0, NULL, "NVME_INIT: failed to send ciocq cmd\n");
         }
         if (!nvme_queue_submit_single_cmd(&controller->aq, &ciosq)) {
-            kpanic(NULL, "NVME_INIT: failed to send ciosq cmd\n");
+            kpanic(0, NULL, "NVME_INIT: failed to send ciosq cmd\n");
         }
 
         nvme_ccmd_t cq_cqe = nvme_queue_poll_single_cqe(&controller->aq);
         if (!NVME_CQE_SUCCESSFUL(cq_cqe)) {
             nvme_debug_cqe_unsuccessful(cq_cqe);
-            kpanic(NULL, "NVME_INIT: couldn't create cq\n");
+            kpanic(0, NULL, "NVME_INIT: couldn't create cq\n");
         }
         nvme_ccmd_t sq_cqe = nvme_queue_poll_single_cqe(&controller->aq);
         if (!NVME_CQE_SUCCESSFUL(sq_cqe)) {
             nvme_debug_cqe_unsuccessful(sq_cqe);
-            kpanic(NULL, "NVME_INIT: couldn't create sq\n");
+            kpanic(0, NULL, "NVME_INIT: couldn't create sq\n");
         }
     }
 

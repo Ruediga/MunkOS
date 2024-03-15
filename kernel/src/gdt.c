@@ -2,6 +2,7 @@
 
 #include "gdt.h"
 #include "cpu.h"
+#include "kprintf.h"
 
 struct __attribute__((packed)) {
     segment_descriptor gdts[5];
@@ -113,7 +114,6 @@ void rld_gdt()
         "mov %%ax, %%fs\n"
         "mov %%ax, %%gs\n"
         "mov %%ax, %%ss\n"
-        "retq"
         :
         : "r" (&gdtr)
         : "memory"

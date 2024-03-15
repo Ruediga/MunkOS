@@ -21,7 +21,7 @@ endef
 # Toolchain for building the 'limine' executable for the host.
 override DEFAULT_HOST_CC := cc
 $(eval $(call DEFAULT_VAR,HOST_CC,$(DEFAULT_HOST_CC)))
-override DEFAULT_HOST_CFLAGS := -g -O2 -pipe
+override DEFAULT_HOST_CFLAGS := -g -O1 -pipe
 $(eval $(call DEFAULT_VAR,HOST_CFLAGS,$(DEFAULT_HOST_CFLAGS)))
 override DEFAULT_HOST_CPPFLAGS :=
 $(eval $(call DEFAULT_VAR,HOST_CPPFLAGS,$(DEFAULT_HOST_CPPFLAGS)))

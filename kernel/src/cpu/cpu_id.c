@@ -127,6 +127,6 @@ void cpuid_compatibility_check(struct cpuid_data_common *data)
     if (!(data->feature_flags_edx & (1 << 0))) okay = 0;
 
     if (!okay) {
-        kpanic(NULL, "\nYour CPU doesn't support required hardware features.\n");
+        kpanic(0, NULL, "\nYour CPU doesn't support required hardware features.\n");
     }
 }

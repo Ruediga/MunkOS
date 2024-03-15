@@ -9,7 +9,7 @@ void acquire_lock(k_spinlock_t *lock) {
     size_t c = 0;
     while (!__sync_bool_compare_and_swap(&lock->lock, 0, 1)) {
         __asm__ ("pause");
-        if (++c > 10000000ul) kpanic(NULL, "DEADLOCK\n");
+        if (++c > 10000000ul) kpanic(0, NULL, "DEADLOCK\n");
     }
 }
 

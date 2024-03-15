@@ -4,6 +4,7 @@
 #include "cpu.h"
 #include "apic.h"
 #include "scheduler.h"
+#include "stacktrace.h"
 
 #include <stdarg.h>
 
@@ -58,12 +59,12 @@ static const char * cpu_exception_strings[32] = {
 
 void default_interrupt_handler(cpu_ctx_t *regs)
 {
-    kpanic(regs, "An unhandled interrupt occured\n");
+    kpanic(0, regs, "An unhandled interrupt occured\n");
 }
 
 void cpu_exception_handler(cpu_ctx_t *regs)
 {
-    kpanic(regs, "");
+    kpanic(0, regs, "what");
 }
 
 void print_register_context(cpu_ctx_t *regs)
@@ -95,9 +96,13 @@ void print_register_context(cpu_ctx_t *regs)
 }
 
 // kernel panic
-void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
+void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...)
 {
     ints_off();    // if manually called interrupts may be on
+
+    if (flags & KPANIC_FLAGS_QUIET) {
+        goto quiet;
+    }
 
     //release_lock(&kprintf_lock); // kprintf may be locked ?
 
@@ -110,11 +115,18 @@ void __attribute__((noreturn)) kpanic(cpu_ctx_t *regs, const char *format, ...)
 
     if (regs) print_register_context(regs);
 
-    // halt other cores
-    cpu_local_t *this_cpu = get_this_cpu();
-    kprintf("\nHalting cores: %lu", this_cpu->id);
-    lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
+    if (!(flags & KPANIC_FLAGS_DONT_TRACE_STACK)) {
+        stacktrace();
+    }
 
+    // halt other cores
+    if (!(flags & KPANIC_FLAGS_THIS_CORE_ONLY)) {
+        cpu_local_t *this_cpu = get_this_cpu();
+        kprintf("\nHalting cores: %lu", this_cpu->id);
+        lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
+    }
+
+quiet:
     __asm__ ("hlt");
 
     __builtin_unreachable();

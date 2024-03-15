@@ -1,6 +1,5 @@
 #include "vmm.h"
 #include "pmm.h"
-#include "limine.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "cpu.h"
@@ -61,7 +60,7 @@ static uint64_t *get_below_pml(uint64_t *pml_pointer, uint64_t index, bool force
 
     void *below_pml = pmm_claim_contiguous_pages(1);
     if (below_pml == NULL) {
-        kpanic(NULL, "Allocating pages for vmm tables failed\n\r");
+        kpanic(0, NULL, "Allocating pages for vmm tables failed\n\r");
     }
     // zero out contents of newly allocated page
     memset((void *)((uint64_t)below_pml + hhdm->offset), 0, PAGE_SIZE);
@@ -104,13 +103,13 @@ static uint64_t *pml4_to_pt(uint64_t *pml4, uint64_t va, bool force)
 static void init_kpm(void)
 {
     if (!kernel_address_request.response) {
-        kpanic(NULL, "limine kernel address request not answered\n\r");
+        kpanic(0, NULL, "limine kernel address request not answered\n\r");
     }
 
     // claim space for pml4
     kernel_pmc.pml4_address = (uintptr_t)pmm_claim_contiguous_pages(1);
     if (!kernel_pmc.pml4_address) {
-        kpanic(NULL, "pmm_claim_contiguous_pages returned NULL\n\r");
+        kpanic(0, NULL, "pmm_claim_contiguous_pages returned NULL\n\r");
     }
     kernel_pmc.pml4_address += hhdm->offset;
     // zero out contents of newly allocated page
@@ -129,11 +128,11 @@ static void init_kpm(void)
         data_end = ALIGN_UP((uintptr_t)data_end_addr, PAGE_SIZE);
 
     if (!kernel_address_request.response) {
-        kpanic(NULL, "Kernel Address request failed!\n");
+        kpanic(0, NULL, "Kernel Address request failed!\n");
     }
 
     // limine
-    struct limine_kernel_address_response *ka = kernel_address_request.response;
+    kernel_address = kernel_address_request.response;
 
     // map lapics (src/apic/lapic.h)
     vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((lapic_address + hhdm->offset), PAGE_SIZE),
@@ -174,19 +173,18 @@ static void init_kpm(void)
         }
     }
 
-    // Lyre's approach of mapping the kernel
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
-        uintptr_t phys = text_addr - ka->virtual_base + ka->physical_base;
+        uintptr_t phys = text_addr - kernel_address->virtual_base + kernel_address->physical_base;
         vmm_map_single_page(&kernel_pmc, text_addr, phys, PTE_BIT_PRESENT);
     }
 
     for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
-        uintptr_t phys = rodata_addr - ka->virtual_base + ka->physical_base;
+        uintptr_t phys = rodata_addr - kernel_address->virtual_base + kernel_address->physical_base;
         vmm_map_single_page(&kernel_pmc, rodata_addr, phys, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE);
     }
 
     for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
-        uintptr_t phys = data_addr - ka->virtual_base + ka->physical_base;
+        uintptr_t phys = data_addr - kernel_address->virtual_base + kernel_address->physical_base;
         vmm_map_single_page(&kernel_pmc, data_addr, phys, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE);
     }
 
@@ -203,7 +201,7 @@ void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t
     size_t pt_index = EXTRACT_BITS(va, 12ul, 20ul);
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, true);
     if (pt == NULL) {
-        kpanic(NULL, "Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
+        kpanic(0, NULL, "Page Mapping couldnt be made (pt doesn't exist and didnt get created)\n\r");
     }
     // map page
     pt[pt_index] = pa | flags;

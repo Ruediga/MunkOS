@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "macros.h"
+#include "limine.h"
 
 void init_vmm(void);
 
@@ -13,6 +14,7 @@ typedef struct {
 } page_map_ctx;
 
 extern page_map_ctx kernel_pmc;
+extern struct limine_kernel_address_response *kernel_address;
 
 // page directory entry macros
 #define PTE_BIT_PRESENT (1ul << 0ul)

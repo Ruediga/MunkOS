@@ -144,7 +144,7 @@ void ioapic_set_irq(uint32_t irq, uint32_t vector, uint32_t lapic_id, bool unset
         }
     }
     if (!ioapic) {
-        kpanic(NULL, "IRQL %u isn't mapped to any IOAPIC!\n", (uint64_t)irq);
+        kpanic(0, NULL, "IRQL %u isn't mapped to any IOAPIC!\n", (uint64_t)irq);
     }
 
     uint32_t entry_high = lapic_id << (56 - 32);
@@ -218,7 +218,7 @@ void init_lapic(void)
 {
     // check if lapics are where they're supposed to be
     if ((read_msr(0x1b) & 0xfffff000) != lapic_address - hhdm->offset) {
-        kpanic(NULL, "LAPIC PA doesn't match\n");
+        kpanic(0, NULL, "LAPIC PA doesn't match\n");
     }
 
     if (!lapic_vectors_are_registered) {

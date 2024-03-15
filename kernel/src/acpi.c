@@ -44,7 +44,7 @@ static bool validate_table(volatile struct acpi_sdt_header *table_header)
 void parse_acpi(void)
 {
     if (rsdp_request.response == NULL || rsdp_request.response->address == NULL) {
-        kpanic(NULL, "ACPI is not supported\n");
+        kpanic(0, NULL, "ACPI is not supported\n");
     }
 
     rsdp_ptr = rsdp_request.response->address;
@@ -56,7 +56,7 @@ void parse_acpi(void)
     rsdt_ptr = xsdt_present ? (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
         : (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
     if (rsdt_ptr == NULL) {
-        kpanic(NULL, "ACPI is not supported\n");
+        kpanic(0, NULL, "ACPI is not supported\n");
     }
     vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
         ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
@@ -72,14 +72,14 @@ void parse_acpi(void)
     }
 
     if (!(fadt_ptr = get_sdt("FACP")) || !validate_table(&fadt_ptr->header)) {
-        kpanic(NULL, "FADT not found\n");
+        kpanic(0, NULL, "FADT not found\n");
     }
     if (!(madt_ptr = get_sdt("APIC")) || !validate_table(&madt_ptr->header)) {
-        kpanic(NULL, "MADT not found\n");
+        kpanic(0, NULL, "MADT not found\n");
     }
     // PCIe config, removed bcus packed || !validate_table(&mcfg_ptr->header)
     if (!(mcfg_ptr = get_sdt("MCFG"))) {
-        kpanic(NULL, "MCFG not found\n");
+        kpanic(0, NULL, "MCFG not found\n");
     }
 
     parse_madt(madt_ptr);
@@ -128,6 +128,6 @@ void parse_madt(volatile struct acpi_madt *madt)
 
     kprintf("  - acpi: found %lu ioapic(s) and %lu lapic(s)\n", ioapics.size, lapics.size);
     if (ioapics.size == 0) {
-        kpanic(NULL, "Systems without an IOAPIC are not supported!\n");
+        kpanic(0, NULL, "Systems without an IOAPIC are not supported!\n");
     }
 }

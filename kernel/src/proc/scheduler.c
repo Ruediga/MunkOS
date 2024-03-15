@@ -121,7 +121,7 @@ void scheduler_preempt(cpu_ctx_t *regs)
     if (this_thread->killed) {
         size_t index = this_thread->owner->threads.find(&this_thread->owner->threads, this_thread);
         if (index == VECTOR_NOT_FOUND) {
-            kpanic(NULL, "Trying to free dead or non existing thread (%p)\n", this_thread);
+            kpanic(0, NULL, "Trying to free dead or non existing thread (%p)\n", this_thread);
         }
         this_thread->owner->threads.remove(&this_thread->owner->threads, index);
 

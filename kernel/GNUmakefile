@@ -24,7 +24,7 @@ override DEFAULT_LD := ld
 $(eval $(call DEFAULT_VAR,LD,$(DEFAULT_LD)))
 
 # User controllable C flags.
-override DEFAULT_CFLAGS := -O2 -pipe
+override DEFAULT_CFLAGS := -O1 -pipe
 $(eval $(call DEFAULT_VAR,CFLAGS,$(DEFAULT_CFLAGS)))
 
 # User controllable C preprocessor flags. We set none by default.
@@ -63,11 +63,12 @@ override CFLAGS += \
     -Wno-unused-function
     # built for debug: -DMUNKOS_DEBUG_BUILD
     # built so verbose printing etc work: -DMUNKOS_VERBOSE_BUILD
-	# -fno-omit-frame-pointer: for stacktrace, maintains frameptr
+	# -fno-omit-frame-pointer: for stacktrace, maintains frameptr even with > -00
 
 # Internal C preprocessor flags that should not be changed by the user.
 override CPPFLAGS := \
     -I include \
+	-fno-omit-frame-pointer \
     $(CPPFLAGS) \
     -MMD \
     -MP

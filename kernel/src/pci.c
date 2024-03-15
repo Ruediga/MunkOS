@@ -96,7 +96,7 @@ static inline void pci_dev_calc_phys(pci_device *dev)
         return;
     }
 
-    kpanic(NULL, "failed to find physical address of pci device\n");
+    kpanic(0, NULL, "failed to find physical address of pci device\n");
 }
 
 void pci_check_device(uint8_t bus, uint8_t dev_slot, uint8_t function)
@@ -149,10 +149,10 @@ void pci_scan_bus(uint8_t bus)
 // [TODO] handle pci-to-pci bridge adapters
 void init_pci(void)
 {
-    if (!mcfg_ptr) kpanic(NULL, "PCIe not available, PCI as fallback not supported\n");
+    if (!mcfg_ptr) kpanic(0, NULL, "PCIe not available, PCI as fallback not supported\n");
 
     size_t count = (mcfg_ptr->header.length - sizeof(struct acpi_sdt_header) - sizeof(uint64_t)) / sizeof(struct acpi_mcfg_entry);
-    if (!count) kpanic(NULL, "PCIe not available, PCI as fallback not supported\n");
+    if (!count) kpanic(0, NULL, "PCIe not available, PCI as fallback not supported\n");
 
     for (size_t i = 0; i < count; i++) {
         kprintf("  - pci: found segment %u (PCIe bus: start = %u; end = %u)\n",

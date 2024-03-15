@@ -24,7 +24,7 @@ static inline thread_t *get_current_thread(void) {
 static inline cpu_local_t *get_this_cpu(void)
 {
     if (interrupts_enabled())
-        kpanic(NULL, "It's illegal to get_this_cpu() while IF set\n");
+        kpanic(0, NULL, "It's illegal to get_this_cpu() while IF set\n");
     thread_t *current_thread = get_current_thread();
     return current_thread->cpu;
 }

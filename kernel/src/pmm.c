@@ -60,7 +60,7 @@ static void init_bitmap(void)
             return;
         }
     }
-    kpanic(NULL, "PMM couldn't fit the page bitmap anywhere\n");
+    kpanic(0, NULL, "PMM couldn't fit the page bitmap anywhere\n");
 }
 
 static void fill_bitmap(void)
@@ -94,7 +94,7 @@ void init_pmm(void)
     hhdm = hhdm_request.response;
 
     if (!memmap || !hhdm || memmap->entry_count <= 1) {
-        kpanic(NULL, "PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
+        kpanic(0, NULL, "PMM::LIMINE_RESPONSE_FAILED memmap or hhdm request failed\n");
     }
 
     // calc page_bitmap size

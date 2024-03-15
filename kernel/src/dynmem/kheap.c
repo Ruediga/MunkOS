@@ -24,7 +24,7 @@ void init_kernel_heap(size_t max_heap_size_pages)
     // take one direct mapped page and put a bitmap there to store which pages in the bitmap are taken
     kernel_heap_bitmap = pmm_claim_contiguous_pages(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8));
     if (!kernel_heap_bitmap) {
-        kpanic(NULL, "no memory (for kernel heap bitmap)\n");
+        kpanic(0, NULL, "no memory (for kernel heap bitmap)\n");
     }
     kernel_heap_bitmap += hhdm->offset;
     memset(kernel_heap_bitmap, 0x00, PAGE_SIZE);
@@ -36,7 +36,7 @@ void init_kernel_heap(size_t max_heap_size_pages)
 void *get_page_at(uintptr_t address)
 {
     if (BITMAP_READ_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE) != 0) {
-        kpanic(NULL, "trying to allocate heap page that was never freed\n");
+        kpanic(0, NULL, "trying to allocate heap page that was never freed\n");
     }
     void *new_page = pmm_claim_contiguous_pages(1);
     if (new_page == NULL) {

@@ -15,6 +15,10 @@
 #define INT_VEC_SPURIOUS 254
 #define INT_VEC_GENERAL_PURPOSE 255 // this may only be used for locked operations and has to be freed
 
+#define KPANIC_FLAGS_QUIET 1
+#define KPANIC_FLAGS_THIS_CORE_ONLY 2
+#define KPANIC_FLAGS_DONT_TRACE_STACK 3
+
 extern uintptr_t handlers[256];
 
 typedef struct __attribute__((packed)) {
@@ -63,7 +67,7 @@ typedef struct __attribute__((packed)) {
 void default_interrupt_handler(cpu_ctx_t *regs);
 void cpu_exception_handler(cpu_ctx_t *regs);
 void print_register_context(cpu_ctx_t *regs);
-void kpanic(cpu_ctx_t *regs, const char *format, ...);
+void kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...);
 void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags);
 void init_idt(void);
 void interrupts_register_vector(size_t vector, uintptr_t handler);
