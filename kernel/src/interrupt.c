@@ -5,6 +5,7 @@
 #include "apic.h"
 #include "scheduler.h"
 #include "stacktrace.h"
+#include "smp.h"
 
 #include <stdarg.h>
 
@@ -64,7 +65,7 @@ void default_interrupt_handler(cpu_ctx_t *regs)
 
 void cpu_exception_handler(cpu_ctx_t *regs)
 {
-    kpanic(0, regs, "what");
+    kpanic(0, regs, "cpu_exception_handler() called\n");
 }
 
 void print_register_context(cpu_ctx_t *regs)
@@ -121,9 +122,13 @@ void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char
 
     // halt other cores
     if (!(flags & KPANIC_FLAGS_THIS_CORE_ONLY)) {
-        cpu_local_t *this_cpu = get_this_cpu();
-        kprintf("\nHalting cores: %lu", this_cpu->id);
-        lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
+        if (!smp_initialized) {
+            kprintf("warning: smp uninitialized, suppressing panic ipis\n");
+        } else {
+            cpu_local_t *this_cpu = get_this_cpu();
+            kprintf("\nHalting cores: %lu", this_cpu->id);
+            lapic_send_ipi(0, INT_VEC_LAPIC_IPI, ICR_DEST_OTHERS);
+        }
     }
 
 quiet:

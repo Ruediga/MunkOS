@@ -9,7 +9,7 @@
 #include "kprintf.h"
 #include "gdt.h"
 #include "interrupt.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "vmm.h"
 #include "kheap.h"
 #include "liballoc.h"
@@ -98,14 +98,14 @@ void kernel_entry(void)
 
     // pmm
     kprintf("%s initializing pmm...\n\r", kernel_okay_string);
-    init_pmm();
+    allocator_init();
 
     // vmm
     kprintf("%s initializing vmm && kernel pm...\n\r", kernel_okay_string);
     init_vmm();
 
     // heap
-    init_kernel_heap((0xFFul * 1024ul * 1024ul * 4096ul) / PAGE_SIZE);
+    init_kernel_heap(1024);
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
@@ -130,8 +130,6 @@ void kernel_entry(void)
     //scheduler_add_kernel_thread(t3);
 
     scheduler_add_kernel_thread(kernel_main);
-
-    stacktrace();
 
     kprintf("bsp core waiting, active threads: %lu\n", kernel_task->threads.size);
     wait_for_scheduling();

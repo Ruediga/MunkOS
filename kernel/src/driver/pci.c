@@ -3,7 +3,7 @@
 #include "acpi.h"
 #include "interrupt.h"
 #include "kprintf.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "vmm.h"
 #include "nvme.h"
 

@@ -5,6 +5,8 @@
 // macros
 // ======
 
+#define NNULL(x) ((x) ? (x) : (kpanic(0, NULL, "NULL check at failed at %s:%d\n", __FILE__, __LINE__), (void *)0))
+
 // max / min
 #define MAX(x, y) (x > y ? x : y)
 #define MIN(x, y) (x < y ? x : y)
@@ -21,6 +23,11 @@
 // alignment
 #define ALIGN_UP(x, base) (((x) + (base) - 1) & ~((base) - 1))
 #define ALIGN_DOWN(x, base) ((x) & ~((base) - 1))
+
+// convert bytes to other sizes
+#define KiB(n) ((n) / 0x400)
+#define MiB(n) (KiB((n)) / 0x400)
+#define GiB(n) (MiB((n)) / 0x400)
 
 // extract bits
 // EXTRACT_BITS(ul, ul, ul)

@@ -1,6 +1,6 @@
 #include "kprintf.h"
 #include "memory.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "vmm.h"
 #include "acpi.h"
 #include "interrupt.h"

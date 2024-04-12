@@ -2,33 +2,19 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 16 --no-reboot --no-shutdown
+override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 4
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off \
 	-D error_log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=b1 \
 	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt \
 	#-trace *nvme*
 
-# Convenience macro to reliably declare user overridable variables.
-define DEFAULT_VAR =
-    ifeq ($(origin $1),default)
-        override $(1) := $(2)
-    endif
-    ifeq ($(origin $1),undefined)
-        override $(1) := $(2)
-    endif
-endef
 
-# Toolchain for building the 'limine' executable for the host.
-override DEFAULT_HOST_CC := cc
-$(eval $(call DEFAULT_VAR,HOST_CC,$(DEFAULT_HOST_CC)))
-override DEFAULT_HOST_CFLAGS := -g -O1 -pipe
-$(eval $(call DEFAULT_VAR,HOST_CFLAGS,$(DEFAULT_HOST_CFLAGS)))
-override DEFAULT_HOST_CPPFLAGS :=
-$(eval $(call DEFAULT_VAR,HOST_CPPFLAGS,$(DEFAULT_HOST_CPPFLAGS)))
-override DEFAULT_HOST_LDFLAGS :=
-$(eval $(call DEFAULT_VAR,HOST_LDFLAGS,$(DEFAULT_HOST_LDFLAGS)))
-override DEFAULT_HOST_LIBS :=
-$(eval $(call DEFAULT_VAR,HOST_LIBS,$(DEFAULT_HOST_LIBS)))
+# build ./limine/limine executable to strap limine onto the binary
+override HOST_CC := cc
+override HOST_CFLAGS := -g -O2 -pipe
+override HOST_CPPFLAGS :=
+override HOST_LDFLAGS :=
+override HOST_LIBS :=
 
 .PHONY: all
 all: ovmf $(IMAGE_NAME).iso $(IMAGE_NAME).img
@@ -69,6 +55,7 @@ limine:
 kernel:
 	$(MAKE) -C kernel
 
+# build the iso image
 $(IMAGE_NAME).iso: limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root
@@ -85,6 +72,7 @@ $(IMAGE_NAME).iso: limine kernel
 	./limine/limine bios-install $(IMAGE_NAME).iso
 	rm -rf iso_root
 
+# build a real image
 $(IMAGE_NAME).img: limine kernel
 	rm -f $(IMAGE_NAME).img
 	dd if=/dev/zero bs=1M count=0 seek=64 of=$(IMAGE_NAME).img

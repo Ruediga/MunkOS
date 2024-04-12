@@ -4,7 +4,7 @@
 #include "kprintf.h"
 #include "gdt.h"
 #include "interrupt.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "vmm.h"
 #include "cpu.h"
 #include "apic.h"
@@ -18,6 +18,7 @@ struct limine_smp_request smp_request = {
 struct limine_smp_response *smp_response = NULL;
 cpu_local_t *global_cpus = NULL; // store cpu data for each booted cpu
 uint64_t smp_cpu_count = 0;
+int smp_initialized;
 
 static volatile size_t startup_checksum = 0;
 
@@ -93,4 +94,5 @@ void boot_other_cores(void)
         __asm__ ("pause");
 
     kprintf("  - successfully booted up all %lu cores\n", smp_cpu_count);
+    smp_initialized = 1;
 }

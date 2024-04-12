@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vfs.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -49,4 +51,12 @@ struct fat_fsinfo {
     uint32_t cluster_start_hint;    // range check
     uint8_t reserved_1[12];
     uint32_t trail_signature;       // valid: 0xAA550000
+};
+
+struct fat_dentry {
+
+};
+
+// gendptr of vfs_fs
+struct fatfs {
 };

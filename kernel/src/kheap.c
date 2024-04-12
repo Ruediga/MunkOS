@@ -2,11 +2,13 @@
 #include "kheap.h"
 #include "macros.h"
 #include "vmm.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "memory.h"
 #include "kprintf.h"
 #include "interrupt.h"
 #include "cpu.h"
+
+// this file is absolute bullshit. i'll fix it soon, promise, but for now don't look at it
 
 uint64_t kernel_heap_max_size_pages = 0x0;
 uintptr_t kernel_heap_base_address = 0x0;
@@ -16,19 +18,21 @@ static k_spinlock_t malloc_lock;
 
 void init_kernel_heap(size_t max_heap_size_pages)
 {
+    struct phys_mem_stat stat;
+    phys_stat_memory(&stat);
+
     // place the heap right after the direct map (if full) in (virtual) memory
-    kernel_heap_base_address = ALIGN_UP(pmm_highest_address_memmap + hhdm->offset, PAGE_SIZE);
+    kernel_heap_base_address = ALIGN_UP(stat.total_pages * PAGE_SIZE + hhdm->offset, PAGE_SIZE);
 
     kernel_heap_max_size_pages = max_heap_size_pages;
-
     // take one direct mapped page and put a bitmap there to store which pages in the bitmap are taken
-    kernel_heap_bitmap = pmm_claim_contiguous_pages(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8));
+
+    kernel_heap_bitmap = page_alloc_temp(size2order(DIV_ROUNDUP(DIV_ROUNDUP(kernel_heap_max_size_pages, PAGE_SIZE), 8) * PAGE_SIZE));
     if (!kernel_heap_bitmap) {
         kpanic(0, NULL, "no memory (for kernel heap bitmap)\n");
     }
     kernel_heap_bitmap += hhdm->offset;
     memset(kernel_heap_bitmap, 0x00, PAGE_SIZE);
-
     kprintf("  - kheap: %lu MiB dynamic memory available\n", kernel_heap_max_size_pages / (1024 * 1024));
 }
 
@@ -38,7 +42,7 @@ void *get_page_at(uintptr_t address)
     if (BITMAP_READ_BIT(kernel_heap_bitmap, (address - kernel_heap_base_address) / PAGE_SIZE) != 0) {
         kpanic(0, NULL, "trying to allocate heap page that was never freed\n");
     }
-    void *new_page = pmm_claim_contiguous_pages(1);
+    void *new_page = page_alloc_temp(size2order(1 * PAGE_SIZE));
     if (new_page == NULL) {
         return NULL;
     }

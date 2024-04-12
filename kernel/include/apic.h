@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "cpu_id.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "acpi.h"
 #include "interrupt.h"
 #include "vector.h"

@@ -1,7 +1,7 @@
 #include "kprintf.h"
 #include "macros.h"
 #include "kprintf.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "vmm.h"
 #include "cpu.h"
 #include "apic.h"

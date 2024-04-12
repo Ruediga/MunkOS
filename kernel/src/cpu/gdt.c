@@ -109,11 +109,11 @@ void rld_gdt()
         "lretq\n"
         "1:\n"
         "mov $0x10, %%ax\n" // 16: offset kernel data 64 bit
-        "mov %%ax, %%ds\n"
         "mov %%ax, %%es\n"
-        "mov %%ax, %%fs\n"
-        "mov %%ax, %%gs\n"
         "mov %%ax, %%ss\n"
+        "mov %%ax, %%gs\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%fs\n"
         :
         : "r" (&gdtr)
         : "memory"

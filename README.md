@@ -2,15 +2,21 @@
 
 Future Operating System very early on in development for learning purposes with simplicity in mind.
 
-Currently, MunkOS only consists of a kernel (with very minimal functionality), supports the x86_64 architecture, and boots with the Limine Bootloader.
+Currently, MunkOS only consists of a kernel (with very minimal functionality), supports the x86_64 architecture for now, and boots with the Limine Bootloader.
 
 # Building
 
-You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, apk, ...):
+You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, nix, apk, ...):
 
-> sudo pacman -S gcc build-essential make xorriso gdisk mtools
+### Arch (& other pacman based distros)
 
-The following make-targets build the image / iso and run qemu
+> sudo pacman -S git gcc build-essential make xorriso gdisk mtools
+
+### Ubuntu / Debian / Mint (& other apt based distros)
+
+> sudo apt install 
+
+The following make-targets build the image / iso and run it with a default qemu config
 
 ```sh
 run-iso-bios
@@ -19,7 +25,9 @@ run-img-bios
 run-img-uefi
 ```
 
-If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund.
+Of course, a `make clean` target exists too.
+
+If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund from the manufacturer.
 
 ### Third party
 

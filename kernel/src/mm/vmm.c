@@ -1,5 +1,5 @@
 #include "vmm.h"
-#include "pmm.h"
+#include "frame_alloc.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "cpu.h"
@@ -58,7 +58,7 @@ static uint64_t *get_below_pml(uint64_t *pml_pointer, uint64_t index, bool force
         return NULL;
     }
 
-    void *below_pml = pmm_claim_contiguous_pages(1);
+    void *below_pml = page_alloc_temp(size2order(1 * PAGE_SIZE));
     if (below_pml == NULL) {
         kpanic(0, NULL, "Allocating pages for vmm tables failed\n\r");
     }
@@ -107,7 +107,7 @@ static void init_kpm(void)
     }
 
     // claim space for pml4
-    kernel_pmc.pml4_address = (uintptr_t)pmm_claim_contiguous_pages(1);
+    kernel_pmc.pml4_address = (uintptr_t)page_alloc_temp(size2order(1 * PAGE_SIZE));
     if (!kernel_pmc.pml4_address) {
         kpanic(0, NULL, "pmm_claim_contiguous_pages returned NULL\n\r");
     }
@@ -139,36 +139,40 @@ static void init_kpm(void)
         ALIGN_DOWN(lapic_address, PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     lapic_address += hhdm->offset;
 
-    // map pmm data structures
-    for (size_t off = 0; off < ALIGN_UP(pmm_total_bytes_pmm_structures, PAGE_SIZE); off += PAGE_SIZE) {
-        vmm_map_single_page(&kernel_pmc, (uintptr_t)pmm_page_bitmap + off, (uintptr_t)pmm_page_bitmap - hhdm->offset + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    // map early_mem allocator data structures
+    for (size_t i = 0; i < early_mem_allocations; i++) {
+        struct early_mem_alloc_mapping *mapping = &early_mem_mappings[i];
+
+        for (size_t off = mapping->start; off < ALIGN_UP(mapping->start + mapping->length, PAGE_SIZE); off += PAGE_SIZE) {
+            vmm_map_single_page(&kernel_pmc, off + hhdm->offset, off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+        }
     }
 
-    for (size_t i = 0; i < memmap->entry_count; i++) {
-        struct limine_memmap_entry *entry = memmap->entries[i];
+    for (size_t i = 0; i < memmap_entry_count; i++) {
+        struct memmap_entry *entry = &memmap[i];
 
         // [DBG]
-        //printf("Entry %-2lu: Base = 0x%016lX, End = 0x%016lX, Length = %lu bytes, Type = %lu\n\r",
-        //    i, entry->base, entry->base + entry->length, entry->length, entry->type);
+        //kprintf("Entry %-2lu: Base = 0x%0p, End = 0x%p, Length = %lu pages, Type = %lu\n\r",
+        //    i, entry->start, entry->start + entry->length, entry->length / PAGE_SIZE, entry->type);
 
         // direct map usable entries for now
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            for (size_t off = entry->base; off < entry->base + entry->length; off += PAGE_SIZE) {
+            for (size_t off = entry->start; off < entry->start + entry->length; off += PAGE_SIZE) {
                 vmm_map_single_page(&kernel_pmc, off + hhdm->offset, off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
             }
         }
         // framebuffer
-        else if (entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            for (size_t off = 0; off < ALIGN_UP(entry->base + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
-                uintptr_t base_off_aligned = ALIGN_UP(entry->base + off, PAGE_SIZE);
+        else if (entry->type ==LIMINE_MEMMAP_FRAMEBUFFER) {
+            for (size_t off = 0; off < ALIGN_UP(entry->start + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+                uintptr_t base_off_aligned = ALIGN_UP(entry->start + off, PAGE_SIZE);
                 vmm_map_single_page(&kernel_pmc, base_off_aligned + hhdm->offset, base_off_aligned,
                     PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_WRITE_THROUGH_CACHING);
             }
         }
         // bootloader reclaimable
         else if (entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            for (size_t off = 0; off < ALIGN_UP(entry->base + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
-                vmm_map_single_page(&kernel_pmc, entry->base + off + hhdm->offset, entry->base + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+            for (size_t off = 0; off < ALIGN_UP(entry->start + entry->length, PAGE_SIZE); off += PAGE_SIZE) {
+                vmm_map_single_page(&kernel_pmc, entry->start + off + hhdm->offset, entry->start + off, PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
             }
         }
     }
@@ -224,7 +228,7 @@ bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 
     // free page
     if (free_pa) {
-        pmm_free_contiguous_pages((void *)(pt[pt_index] & 0x000ffffffffff000), 1);
+        page_free_temp((void *)(pt[pt_index] & 0x000ffffffffff000), 1);
     }
 
     // unmap page
