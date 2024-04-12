@@ -89,7 +89,7 @@ clean:
 	rm -rf iso_root $(IMAGE_NAME).iso $(IMAGE_NAME).img
 	$(MAKE) -C kernel clean
 
-.PHONY: distclean
-distclean: clean
+.PHONY: clean-full
+clean-full: clean
 	rm -rf limine ovmf
-	$(MAKE) -C kernel distclean
+	$(MAKE) -C kernel clean-full

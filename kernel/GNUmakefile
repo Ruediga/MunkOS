@@ -78,7 +78,7 @@ src/limine.h:
 bin/$(KERNEL_NAME): GNUmakefile linker.ld $(OBJ)
 	mkdir -p "$$(dirname $@)"
 	$(LD) $(OBJ) $(LDFLAGS) -o $@
-	python ../prepsymboltable.py bin/symboltable.c
+	python3 ../prepsymboltable.py bin/symboltable.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c bin/symboltable.c -o obj/symboltable.o
 	$(LD) $(OBJ) $(LDFLAGS) obj/symboltable.o -o $@
 
@@ -103,6 +103,6 @@ obj/%.asm.o: src/%.asm GNUmakefile
 clean:
 	rm -rf bin obj
 
-.PHONY: distclean
-distclean: clean
+.PHONY: clean-full
+clean-full: clean
 	rm -f src/limine.h

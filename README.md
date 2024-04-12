@@ -6,15 +6,19 @@ Currently, MunkOS only consists of a kernel (with very minimal functionality), s
 
 # Building
 
+Since I don't provide a custom toolchain script yet, compilation is only possible on x86_64 hosts.
+
 You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, nix, apk, ...):
 
-### Arch (& other pacman based distros)
+### Arch / Manjaro (& other pacman based distros)
 
-> sudo pacman -S git gcc build-essential make xorriso gdisk mtools
+> sudo pacman -S git gcc build-essential make xorriso gdisk mtools curl python3 qemu
 
 ### Ubuntu / Debian / Mint (& other apt based distros)
 
-> sudo apt install 
+> sudo apt install git gcc build-essential make gdisk mtools curl python3 qemu-system-x86
+
+In case the xorriso installation fails, try running `sudo add-apt-repository universe` and then `sudo apt install xorriso` again.
 
 The following make-targets build the image / iso and run it with a default qemu config
 
@@ -25,7 +29,7 @@ run-img-bios
 run-img-uefi
 ```
 
-Of course, a `make clean` target exists too.
+Of course, a `clean` target exists too, and the `clean-full` target gets rid of everything.
 
 If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund from the manufacturer.
 
@@ -33,7 +37,7 @@ If the kernel crashes or something doesn't work for you when testing on real har
 
 - [Limine](https://www.github.com/limine-bootloader/limine)
 - [flanterm](https://github.com/mintsuki/flanterm)
-- [liballoc](https://github.com/blanham/liballoc)
+- [liballoc](https://github.com/blanham/liballoc)   // about to be replaced on my local dev branch
 
 # Features
 
@@ -41,9 +45,11 @@ Currently, I prioritize work on the kernel.
 
 ### Kernel
 
-- [x] PMM
+This list will get a major rework as soon as I care to do that
+
+- [x] PMM (buddy / bitmap)
 - [x] VMM
-- [x] Kernel-Heap
+- [x] Kheap (soon to be merged with slub)
 - [x] Interrupts
 - [x] ACPI
 - [x] I/O APIC
@@ -51,7 +57,7 @@ Currently, I prioritize work on the kernel.
 - [x] Timer (PIT & LAPIC)
 - [x] PS2 driver
 - [x] SMP
-- [x] Threads & Processes
+- [x] Tasks
 - [x] Scheduler
 - [x] PCIe
 - [x] NVME driver
@@ -68,11 +74,9 @@ Currently, I prioritize work on the kernel.
 
 #### FIXME
 
-scheduler bugs out on real hardware and with > 80 cores in qemu
+scheduler API
 
-vmm tlb shootdown not smp core synced
-
-vmm locks
+vmm tlb shootdown not smp core synced -> fix will come with new ipi queue
 
 pci multiple bridges?
 
@@ -80,15 +84,11 @@ pci multiple bridges?
 
 a proper device / driver interface
 
-new vmm system
-
 syscalls
 
-file system
+finish vfs
 
-TSC
-
-scheduler API
+uACPI
 
 ### Long Term Goals
 
