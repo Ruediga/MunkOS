@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "liballoc.h"
+#include "kheap.h"
 
 /*
  * |============|

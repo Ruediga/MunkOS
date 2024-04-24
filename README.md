@@ -37,7 +37,6 @@ If the kernel crashes or something doesn't work for you when testing on real har
 
 - [Limine](https://www.github.com/limine-bootloader/limine)
 - [flanterm](https://github.com/mintsuki/flanterm)
-- [liballoc](https://github.com/blanham/liballoc)   // about to be replaced on my local dev branch
 
 # Features
 
@@ -45,16 +44,16 @@ Currently, I prioritize work on the kernel.
 
 ### Kernel
 
-This list will get a major rework as soon as I care to do that
+This list will get a rework as soon as I care to do that
 
 - [x] PMM (buddy / bitmap)
 - [x] VMM
-- [x] Kheap (soon to be merged with slub)
+- [x] Kheap (slab)
 - [x] Interrupts
 - [x] ACPI
 - [x] I/O APIC
 - [x] LAPIC
-- [x] Timer (PIT & LAPIC)
+- [x] Timer Interface (WIP)
 - [x] PS2 driver
 - [x] SMP
 - [x] Tasks
@@ -76,7 +75,7 @@ This list will get a major rework as soon as I care to do that
 
 scheduler API
 
-vmm tlb shootdown not smp core synced -> fix will come with new ipi queue
+tlb shootdown
 
 pci multiple bridges?
 

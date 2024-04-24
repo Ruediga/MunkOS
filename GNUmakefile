@@ -2,7 +2,7 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 4
+override BASE_QEMU_ARGS := -M q35 -m 4G -enable-kvm -cpu host -smp 8
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off \
 	-D error_log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=b1 \
 	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt \
@@ -37,6 +37,12 @@ run-img-uefi: ovmf $(IMAGE_NAME).img
 	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd\
 		-drive file=$(IMAGE_NAME).img,format=raw,if=none,id=nvme_dev \
         -device nvme,drive=nvme_dev,serial=0
+
+.PHONY: run-img-uefi-gdb
+run-img-uefi-gdb: ovmf $(IMAGE_NAME).img
+	qemu-system-x86_64 $(BASE_QEMU_ARGS) $(EXTRA_QEMU_ARGS) -bios ovmf/OVMF.fd\
+		-drive file=$(IMAGE_NAME).img,format=raw,if=none,id=nvme_dev \
+        -device nvme,drive=nvme_dev,serial=0 -s -S
 
 ovmf:
 	mkdir -p ovmf

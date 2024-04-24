@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #include "cpu_id.h"
-#include "liballoc.h"
+#include "kheap.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "interrupt.h"

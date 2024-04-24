@@ -114,6 +114,8 @@ void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char
     kvprintf(format, args);
     va_end(args);
 
+    kprintf("\n");
+
     if (regs) print_register_context(regs);
 
     if (!(flags & KPANIC_FLAGS_DONT_TRACE_STACK)) {

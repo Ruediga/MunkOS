@@ -1,6 +1,6 @@
 #include "scheduler.h"
 #include "kprintf.h"
-#include "liballoc.h"
+#include "kheap.h"
 #include "apic.h"
 #include "cpu.h"
 #include "queue.h"
@@ -62,7 +62,7 @@ thread_t *scheduler_add_kernel_thread(void *entry)
     VECTOR_REINIT(new_thread->stacks, void_ptr);
 
     // [TODO] proper system
-    void *stack_phys = page_alloc_temp(size2order(100 * PAGE_SIZE));
+    void *stack_phys = page_alloc_temp(psize2order(100 * PAGE_SIZE));
     new_thread->stacks.push_back(&new_thread->stacks, stack_phys);
     void *stack = stack_phys + 100 * PAGE_SIZE + hhdm->offset;
 
@@ -127,7 +127,7 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
         for (size_t i = 0; i < this_thread->stacks.size; i++) {
             // [FIXME]
-            page_free_temp((void *)((uintptr_t)this_thread->stacks.data[i]), size2order(100 * PAGE_SIZE));
+            page_free_temp((void *)((uintptr_t)this_thread->stacks.data[i]), psize2order(100 * PAGE_SIZE));
         }
 
         this_thread->stacks.reset(&this_thread->stacks);

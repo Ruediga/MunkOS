@@ -1,6 +1,6 @@
 #include "vfs.h"
 
-#include "liballoc.h"
+#include "kheap.h"
 
 // system wide vfs root point.
 struct vfs_fs *vfs_sroot = NULL;

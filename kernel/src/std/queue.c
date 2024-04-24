@@ -1,5 +1,5 @@
 #include "queue.h"
-#include "liballoc.h"
+#include "kheap.h"
 
 void queue_enqueue(queue_t *queue, void *value)
 {

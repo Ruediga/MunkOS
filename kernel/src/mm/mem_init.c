@@ -12,6 +12,7 @@
 #include "interrupt.h"
 #include "macros.h"
 #include "kprintf.h"
+#include "memory.h"
 
 // for each allocation keep a record so we can map memory
 // allocated through it into our page tables
@@ -87,6 +88,7 @@ size_t early_mem_init()
     early_mem_is_initialized = 1;
 
     pages = early_mem_alloc(early_mem_total_pages * sizeof(struct page));
+    memset(pages, 0x00, early_mem_total_pages * sizeof(struct page));
 
     return early_mem_total_pages;
 }

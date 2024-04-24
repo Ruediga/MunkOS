@@ -20,6 +20,7 @@
 #include "interrupt.h"
 
 struct page *pages;
+size_t pages_count;
 
 // in pages
 static size_t frame_allocator_total;
@@ -72,7 +73,7 @@ void buddy_free(struct page *page, size_t order);
 
 inline void allocator_init()
 {
-    frame_allocator_total = early_mem_init();
+    pages_count = frame_allocator_total = early_mem_init();
     early_mem_statistics(&frame_allocator_usable, &frame_allocator_free);
 
     // this part is responsible for exiting early mem phase
@@ -90,13 +91,12 @@ inline struct page *page_alloc(size_t order)
 #ifdef MUNKOS_CONFIG_BITMAP
     // doesn't work properly yet since this function doesnt return struct page
     //return _bitmap_page_alloc(order2size(order));
+    //MISSING
     (void)order;
     return NULL;
 #endif
 #ifdef MUNKOS_CONFIG_BUDDY
-    //MISSING
-    (void)order;
-    return NULL;
+    return buddy_alloc(order);
 #endif
 }
 
@@ -124,7 +124,7 @@ inline void page_free(struct page *page, size_t order)
 
 void page_free_temp(void *address, size_t size)
 {
-    page_free(phys2page((uintptr_t)address), size2order(size));
+    page_free(phys2page((uintptr_t)address), psize2order(size));
 }
 
 void phys_stat_memory(struct phys_mem_stat *stat)
@@ -287,7 +287,7 @@ static inline void _list_unlink(struct page *entry, struct page **head) {
     if (*head == entry) {
         *head = entry->next;
         // unnecessary
-        (*head)->prev = NULL;
+        //(*head)->prev = NULL;
     }
 
     if (entry->prev)
@@ -514,8 +514,6 @@ found_buddy:
 void buddy_free(struct page *page, size_t order) {
     acquire_lock(&buddy_allocator.this_lock);
 
-    kprintf("%luth free\n", buddy_allocator.deallocation_count);
-
     size_t cpy_order = order;
 
     // firstly, perform some sanity checks
@@ -539,7 +537,7 @@ void buddy_free(struct page *page, size_t order) {
             // not ready to merge
             break;
         }
-        
+
         // unlink the buddy to merge with, and flip it's bit (1 to zero)
         struct page *buddy = get_buddy(page, order);
         DBGPRNT(kprintf("trying to unlink buddy %lu\n", page2idx(buddy)));

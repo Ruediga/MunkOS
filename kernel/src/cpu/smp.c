@@ -1,6 +1,6 @@
 #include "smp.h"
 #include "limine.h"
-#include "liballoc.h"
+#include "kheap.h"
 #include "kprintf.h"
 #include "gdt.h"
 #include "interrupt.h"

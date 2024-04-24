@@ -1,5 +1,5 @@
 #include "disk_partition.h"
-#include "liballoc.h"
+#include "kheap.h"
 #include "memory.h"
 #include "kprintf.h"
 #include "macros.h"

@@ -12,7 +12,6 @@
 #include "frame_alloc.h"
 #include "vmm.h"
 #include "kheap.h"
-#include "liballoc.h"
 #include "acpi.h"
 #include "apic.h"
 #include "cpu_id.h"
@@ -35,8 +34,77 @@ struct limine_framebuffer_request framebuffer_request = {
 struct cpuid_data_common cpuid_data = {};
 struct flanterm_context *ft_ctx;
 
+static unsigned long pseudo_rand(unsigned long *seed) {
+    *seed = *seed * 1103515245 + 12345;
+    return (*seed / 65536) % 32768;
+}
+
+static int stress_test(void) {
+    void *ptr = NULL;
+    unsigned long sizes[20], i, j, test_cycles = 100000;
+    int ret = 0;
+
+    unsigned long seed = 123456789;
+    for (i = 0; i < 20; i++) {
+        sizes[i] = (pseudo_rand(&seed) % (1024 * 1024 - 1)) + 1;
+    }
+
+    for (i = 0; i < test_cycles; i++) {
+        if (!(i % 1000))
+            kprintf("run %lu\n", i);
+
+        for (j = 0; j < 20; j++) {
+            ptr = kmalloc(sizes[j]);
+            if (!ptr) {
+                kprintf("kalloc failed to allocate memory of size %lu\n", sizes[j]);
+                ret = 0xDEAD;
+                goto out;
+            }
+
+            memset(ptr, 0xaa, sizes[j]);
+
+            ptr = krealloc(ptr, sizes[j] * 2);
+            if (!ptr) {
+                kprintf("krealloc failed to increase memory size to %lu\n", sizes[j] * 2);
+                ret = 0xDEAD;
+                goto out;
+            }
+
+            memset(ptr, 0x55, sizes[j] * 2);
+
+            kfree(ptr);
+            ptr = NULL;
+
+            ptr = kmalloc(sizes[j]);
+            if (!ptr) {
+                kprintf("kmalloc failed again to allocate memory of size %lu\n", sizes[j]);
+                ret = 0xDEAD;
+                goto out;
+            }
+
+            ptr = krealloc(ptr, sizes[j] / 3);
+            if (!ptr) {
+                kprintf("krealloc failed to decrease memory size to %lu\n", sizes[j] / 3);
+                ret = 0xDEAD;
+                goto out;
+            }
+
+            kfree(ptr);
+            ptr = NULL;
+        }
+    }
+
+out:
+    if (ptr) {
+        kfree(ptr);
+    }
+    return ret;
+}
+
 void kernel_main(void)
 {
+    stress_test();
+
     kprintf("i am t0 (main thread)\n");
 
     kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
@@ -105,7 +173,7 @@ void kernel_entry(void)
     init_vmm();
 
     // heap
-    init_kernel_heap(1024);
+    slab_init();
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
 
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);

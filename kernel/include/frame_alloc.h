@@ -5,12 +5,20 @@
 #include <stddef.h>
 
 #include "cpu.h"
+#include "interrupt.h"
+
+#define STRUCT_PAGE_ALIGNMENT (16)
 
 #define PAGE_SIZE (0x1000ul)
 #define PAGE_SHIFT (12ul)
 
 #define BUDDY_HIGH_ORDER (10ul)
 #define BUDDY_LOW_ORDER (0ul)
+
+// struct page flag bits (32 bit signed int)
+#define STRUCT_PAGE_FLAG_COMPOSITE_TAIL (1 << 1)
+#define STRUCT_PAGE_FLAG_SLAB_COMPOSITE_HEAD (1 << 2)
+#define STRUCT_PAGE_FLAG_KMALLOC_BUDDY (1 << 3)
 
 // config allocator (don't move this)
 // xxx_BUDDY and xxx_BITMAP are configurable
@@ -25,6 +33,7 @@
 struct page;
 
 extern struct page *pages;
+extern size_t pages_count;
 // copy of limines memmap
 extern struct memmap_entry *memmap;
 extern size_t memmap_entry_count;
@@ -39,16 +48,33 @@ struct early_mem_alloc_mapping {
 extern struct early_mem_alloc_mapping early_mem_mappings[];
 extern size_t early_mem_allocations;
 
-// 20 bytes
+// current size: 40 bytes
 struct page {
-    int i;
+    int32_t flags;  // make sure to have these set correctly
     union {
-        struct { // allocator free list
+        struct {    // buddy allocator free list
             struct page *next;
             struct page *prev;
         };
+        struct {    // for slab, theres a seperately defined structure (sync this up!)
+            void *slab_next;            // struct page *
+            void *slab_prev;            // struct page *
+            void *this_cache;           // struct slab_cache *this_cache;
+            void *freelist;             // pointer to first object
+            uint16_t used_objs;
+            uint16_t total_objs;
+        };
+        struct {    // slab buddy page
+            size_t order;
+        };
+        struct {    // composite page:
+                    // if page is part of a composite page,
+                    // we can use this to save a reference to
+                    // the head of the composite page
+            struct page *comp_head;
+        };
     };
-};
+} __attribute__((aligned(STRUCT_PAGE_ALIGNMENT)));
 
 // fill this structure up with phys_stat_memory(struct phys_mem_stat *stat),
 // so atomicity is guaranteed
@@ -86,13 +112,26 @@ static inline struct page *phys2page(uintptr_t phys) {
 
 // struct page * to idx (= offset into mempages table)
 static inline size_t page2idx(struct page *page) {
+    if (page < pages || page >= (pages + pages_count)) {
+        kpanic(0, NULL, "page %p is not in range\n", page);
+    }
     return ((uintptr_t)page - (uintptr_t)pages) / sizeof(struct page);
 }
 
-// returns in what category a range falls, in case of unalignment, returns the higher order
-static inline size_t size2order(size_t size) {
+// returns in what page size category a range falls, in case of unalignment, returns the higher order
+static inline size_t psize2order(size_t size) {
     size_t order = 0;
     while (size > PAGE_SIZE) {
+        size >>= 1;
+        order++;
+    }
+    return order;
+}
+
+// returns pow2 order, in case of unalignment, returns the higher order
+static inline size_t size2order(size_t size) {
+    size_t order = 0;
+    while (size > 1) {
         size >>= 1;
         order++;
     }

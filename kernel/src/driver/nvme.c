@@ -304,8 +304,8 @@ static void nvme_init_queue(struct nvme_controller *controller, struct nvme_queu
     size_t pages_sq = DIV_ROUNDUP(NVME_SQE_SIZE * entries, PAGE_SIZE);
     size_t pages_cq = DIV_ROUNDUP(NVME_CQE_SIZE * entries, PAGE_SIZE);
     
-    void *sq = page_alloc_temp(size2order(pages_sq * PAGE_SIZE));
-    void *cq = page_alloc_temp(size2order(pages_cq * PAGE_SIZE));
+    void *sq = page_alloc_temp(psize2order(pages_sq * PAGE_SIZE));
+    void *cq = page_alloc_temp(psize2order(pages_cq * PAGE_SIZE));
 
     for (size_t page = 0; page < pages_sq; page++) {
         vmm_map_single_page(&kernel_pmc, hhdm->offset + (uintptr_t)sq + page * PAGE_SIZE,
@@ -399,7 +399,7 @@ static nvme_ccmd_t nvme_queue_poll_single_cqe(struct nvme_queue_ctx *queue)
 union nvme_identify_ds *nvme_issue_cmd_identify(struct nvme_controller *controller, uint8_t cns, uint16_t cntid, uint16_t nsid)
 {
     // [FIXME] fix this sht (don't claim hhdm page)
-    union nvme_identify_ds *identifier = page_alloc_temp(size2order(1 * PAGE_SIZE));
+    union nvme_identify_ds *identifier = page_alloc_temp(psize2order(1 * PAGE_SIZE));
     vmm_map_single_page(&kernel_pmc, hhdm->offset + (uintptr_t)identifier,
         (uintptr_t)identifier, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
     identifier = (void *)((uintptr_t)identifier + hhdm->offset);
@@ -699,7 +699,7 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
     } else {
         if ((length >= (PAGE_SIZE * 2) && (buffer_start % PAGE_SIZE) != 0) || (length > (PAGE_SIZE * 2) && (buffer_start % PAGE_SIZE) == 0)) {
             // prp2 prp list pointer (this solution is very suboptimal)
-            uintptr_t prp_list = (uintptr_t)page_alloc_temp(size2order(1 * PAGE_SIZE));
+            uintptr_t prp_list = (uintptr_t)page_alloc_temp(psize2order(1 * PAGE_SIZE));
             vmm_map_single_page(&kernel_pmc, prp_list + hhdm->offset, prp_list, PTE_BIT_EXECUTE_DISABLE | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
             prp_list += hhdm->offset;
 

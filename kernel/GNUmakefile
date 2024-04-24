@@ -5,7 +5,7 @@ override KERNEL_NAME := kernel.elf_x86_64
 # replace this by a proper x86_64 toolchain
 override CC := gcc
 override LD := ld
-override CFLAGS := -Og -pipe
+override CFLAGS := -O3 -pipe -g
 override NASMFLAGS := -F dwarf -g
 override LDFLAGS :=
 
