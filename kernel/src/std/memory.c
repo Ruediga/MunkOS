@@ -1,5 +1,8 @@
 #include "memory.h"
 
+// these are completeky unoptimized, maybe its a nice idea to include
+// hand optimized per arch versions (non sse)?
+
 void *memcpy(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
@@ -49,4 +52,11 @@ int memcmp(const void *s1, const void *s2, size_t n) {
     }
 
     return 0;
+}
+
+size_t strlen(const char *str)
+{
+    const char *s;
+    for (s = str; *s; ++s) ;
+    return (s - str);
 }

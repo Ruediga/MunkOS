@@ -5,7 +5,8 @@
 
 // interrupt mappings. 0 - 31 cpu
 #define INT_VEC_PIT 32
-#define INT_VEC_PS2 33
+#define INT_VEC_RTC 33
+#define INT_VEC_PS2 34
 
 #define INT_VEC_SCHEDULER 100
 #define INT_VEC_LAPIC_TIMER 101

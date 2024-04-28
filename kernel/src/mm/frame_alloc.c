@@ -511,6 +511,7 @@ found_buddy:
 }
 
 // free 2 ^ n pages. performs sanity checks.
+// double free check?
 void buddy_free(struct page *page, size_t order) {
     acquire_lock(&buddy_allocator.this_lock);
 

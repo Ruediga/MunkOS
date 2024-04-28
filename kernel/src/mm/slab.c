@@ -1,8 +1,11 @@
+#include <stddef.h>
+
 #include "frame_alloc.h"
 #include "kheap.h"
 #include "kprintf.h"
 #include "interrupt.h"
 #include "memory.h"
+#include "vmm.h"
 
 // Basic slab allocator. Allocations on pow2 sized blocks are guaranteed to be aligned,
 // if allocated via the generic cache pools. When the sanitizer is enabled,
@@ -340,6 +343,9 @@ static struct slab *_find_corresponding_slab(void *addr)
 
 // allocate from the kmalloc_generic_caches. alloc sizes are rounded up to powers
 // of 2. pow2 allocations are aligned.
+// since I noticed that I have a tendency to use unitialized malloc'ed memory,
+// I should invalidate all memory I return so stuff doesnt randomly break on real
+// hw where I dont get conviniently zeroed out memory
 void *kmalloc(size_t size)
 {
     if (size > KMALLOC_MAX_CACHE_SIZE) {
@@ -399,6 +405,9 @@ void *kmalloc(size_t size)
 // kmalloc - kfree: implement use-after-free sanitizer?
 void kfree(void *addr)
 {
+    // NULL ptr free is a noop
+    if (!addr) return;
+
     struct page *pg = phys2page((uintptr_t)addr - hhdm->offset);
     if (pg->flags & STRUCT_PAGE_FLAG_KMALLOC_BUDDY) {
         pg->flags &= ~STRUCT_PAGE_FLAG_KMALLOC_BUDDY;

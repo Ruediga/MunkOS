@@ -607,7 +607,7 @@ not_supported:
 
         // init namespace and partition devices
         // [TODO] controller devices
-        struct device *nvme_ns_dev = kmalloc(sizeof(struct device));
+        struct device *nvme_ns_dev = kcalloc(1, sizeof(struct device));
         // store nsctx pointer in gendptr
         device_init(nvme_ns_dev, nsctx.lba_size, nsctx.cap, 0, DEV_BLOCK,
             (gen_dptr)&controller->active_ns.data[i], "nvme%un%lu", (uint32_t)nsctx.controller->cntlid, i + 1);

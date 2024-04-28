@@ -2,6 +2,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
+
+typedef uint8_t int_status_t;
 
 struct thread_t;
 
@@ -85,6 +88,20 @@ static inline struct thread_t *read_kernel_gs_base(void) {
     return (struct thread_t *)read_msr(0xc0000102);
 }
 
+static inline int_status_t ints_fetch_disable(void) {
+    uint64_t rflags;
+    __asm__ volatile("pushfq\n\t"
+                     "popq %0\n\t"
+                     "cli"
+                     : "=r" (rflags) : : "memory");
+    return (int_status_t)((rflags >> 9) & 1);
+}
+
+static inline void ints_status_restore(int_status_t state) {
+    if (state)
+        __asm__ ("sti");
+}
+
 static inline void ints_off(void) {
     __asm__ ("cli");
 }
@@ -93,5 +110,9 @@ static inline void ints_on(void) {
     __asm__ ("sti");
 }
 
+void nmi_enable(void);
+void nmi_disable(void);
+
 void acquire_lock(k_spinlock_t *lock);
 void release_lock(k_spinlock_t *lock);
+bool acquire_lock_timeout(k_spinlock_t *lock, size_t millis);

@@ -35,8 +35,9 @@ If the kernel crashes or something doesn't work for you when testing on real har
 
 ### Third party
 
-- [Limine](https://www.github.com/limine-bootloader/limine)
-- [flanterm](https://github.com/mintsuki/flanterm)
+- [Limine by mintsuki](https://www.github.com/limine-bootloader/limine)
+- [flanterm by mintsuki](https://github.com/mintsuki/flanterm)
+- [uACPI by CopyObject abuser](https://github.com/UltraOS/uACPI)
 
 # Features
 
@@ -50,7 +51,7 @@ This list will get a rework as soon as I care to do that
 - [x] VMM
 - [x] Kheap (slab)
 - [x] Interrupts
-- [x] ACPI
+- [x] ACPI (uACPI by CopyObject abuser)
 - [x] I/O APIC
 - [x] LAPIC
 - [x] Timer Interface (WIP)
@@ -81,13 +82,16 @@ pci multiple bridges?
 
 #### Features
 
+require x86-64 toolchain
+& manage dependencies better
+
+fix stacktrace at higher optimizations
+
 a proper device / driver interface
 
 syscalls
 
 finish vfs
-
-uACPI
 
 ### Long Term Goals
 

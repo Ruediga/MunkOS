@@ -15,7 +15,7 @@ static bool stacktrace_analyze_frame(uintptr_t address, size_t which)
     uintptr_t kaslr_off = kernel_address->virtual_base - 0xFFFFFFFF80000000;
     address -= kaslr_off;
 
-    // while not at end, loop through list of (ordered) stack frames,
+    // loop through list of (ordered) stack frames,
     // search for biggest symbols address smaller than address
     struct stacktrace_symbol_table_entry *prev = &stacktrace_symtable[0];
     for (size_t i = 0; stacktrace_symtable[i].address; i++) {

@@ -8,7 +8,7 @@
 #include "acpi.h"
 #include "io.h"
 #include "smp.h"
-#include "pit.h"
+#include "time.h"
 
 static uint64_t calibration_probe_count, calibration_timer_start, calibration_timer_end;
 

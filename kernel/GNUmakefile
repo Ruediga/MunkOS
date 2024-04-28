@@ -1,8 +1,10 @@
+# split this up with better directory structure?
+
 override MAKEFLAGS += -rR
 
 override KERNEL_NAME := kernel.elf_x86_64
 
-# replace this by a proper x86_64 toolchain
+# replace this by a proper x86_64 toolchain (or just x86_64-elf-gcc)
 override CC := gcc
 override LD := ld
 override CFLAGS := -O3 -pipe -g
@@ -27,7 +29,6 @@ override CFLAGS += \
     -fno-lto \
     -fPIE \
     -m64 \
-    -march=x86-64 \
     -mno-80387 \
     -mno-mmx \
     -mno-sse \
@@ -36,7 +37,11 @@ override CFLAGS += \
 	-fno-omit-frame-pointer \
     -Wno-unused-function \
     -DMUNKOS_DEBUG_BUILD \
-    -DMUNKOS_VERBOSE_BUILD
+    -DMUNKOS_VERBOSE_BUILD \
+    -DUACPI_OVERRIDE_STDLIB \
+    -Wno-maybe-uninitialized \
+    -march=x86-64 \
+    -mpopcnt
     # built with extra debug checks: -DMUNKOS_DEBUG_BUILD
     # built with verbose printing: -DMUNKOS_VERBOSE_BUILD
 

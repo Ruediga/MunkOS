@@ -17,7 +17,7 @@
 #include "cpu_id.h"
 #include "smp.h"
 #include "ps2_keyboard.h"
-#include "pit.h"
+#include "time.h"
 #include "scheduler.h"
 #include "pci.h"
 #include "serial.h"
@@ -41,7 +41,7 @@ static unsigned long pseudo_rand(unsigned long *seed) {
 
 static int stress_test(void) {
     void *ptr = NULL;
-    unsigned long sizes[20], i, j, test_cycles = 100000;
+    unsigned long sizes[20], i, j, test_cycles = 10000;
     int ret = 0;
 
     unsigned long seed = 123456789;
@@ -101,14 +101,56 @@ out:
     return ret;
 }
 
+#include "uacpi/uacpi.h"
+#include "uacpi/sleep.h"
+void init_acpi(void)
+{
+    uacpi_init_params init_params = {
+        .rsdp = (uintptr_t)rsdp_request.response->address - hhdm->offset,
+ 
+        .rt_params = {
+            .log_level = UACPI_LOG_TRACE,
+            .flags = 0,
+        },
+    };
+
+    uacpi_status ret = uacpi_initialize(&init_params);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(0, NULL, "uACPI failed to initialize: %s", uacpi_status_to_string(ret));
+    }
+
+    ret = uacpi_namespace_load();
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(0, NULL, "uACPI failed to load namespace: %s", uacpi_status_to_string(ret));
+    }
+
+    ret = uacpi_namespace_initialize();
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(0, NULL, "uACPI failed to initialize namespace: %s", uacpi_status_to_string(ret));;
+    }
+
+    // uacpi/event.h
+    //ret = uacpi_finalize_gpe_initialization();
+    //if (uacpi_unlikely_error(ret)) {
+    //    kpanic(0, NULL, "uACPI failed to initialize GPE: %s", uacpi_status_to_string(ret));
+    //}
+
+    kprintf("%s uACPI initialized\n\r", kernel_okay_string);
+ 
+    // at this point we can do driver stuff and fully use acpi
+    // thank @CopyObject abuser
+}
+
 void kernel_main(void)
 {
     stress_test();
 
     kprintf("i am t0 (main thread)\n");
 
-    kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
     init_pci();
+    kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
+
+    init_acpi();
 
     scheduler_kernel_thread_exit();
 }
@@ -147,6 +189,8 @@ void kernel_entry(void)
         framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
 
     init_serial();
+
+    kprintf("Build from %s@%s\n", __DATE__, __TIME__);
 
     kprintf("%s performing compatibility check...\n\r", kernel_okay_string);
     cpuid_common(&cpuid_data);
@@ -188,8 +232,12 @@ void kernel_entry(void)
     kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
 
-    kprintf("%s redirecting pit...\n\r", kernel_okay_string);
+    kprintf("%s redirecting system timers...\n\r", kernel_okay_string);
     init_pit();
+    rtc_init();
+
+    kprintf("%s initializing time...\n\r", kernel_okay_string);
+    time_init();
 
     ps2_init();
 
@@ -200,5 +248,6 @@ void kernel_entry(void)
     scheduler_add_kernel_thread(kernel_main);
 
     kprintf("bsp core waiting, active threads: %lu\n", kernel_task->threads.size);
+    // we should exit here
     wait_for_scheduling();
 }
