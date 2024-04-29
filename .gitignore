@@ -5,7 +5,7 @@ image.iso
 
 **/obj/
 **/bin/
-**/deps/*
+kernel/deps/*
 
 tools/ovmf
 tools/limine
