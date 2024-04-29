@@ -5,7 +5,11 @@ image.iso
 
 **/obj/
 **/bin/
-kernel/deps/*
+# don't forget to keep this up to date
+kernel/deps/flanterm
+kernel/deps/uACPI
+kernel/deps/include
+kernel/deps/src
 
 tools/ovmf
 tools/limine
