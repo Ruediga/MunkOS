@@ -12,8 +12,9 @@ override NASMFLAGS := -F dwarf -g
 override LDFLAGS :=
 
 # c preprocessor flags
+# FIXME remove flanterm include
 override CPPFLAGS := \
-    -I include \
+    -I include -I deps/include -I deps/include/flanterm -I deps/include/flanterm/backends \
     -MMD \
     -MP
 
@@ -63,51 +64,58 @@ override NASMFLAGS += \
 
 # source files
 override CFILES := $(shell cd src && find -type f -name '*.c')
+override DEP_CFILES := $(shell cd deps/src && find -type f -name '*.c')
 override ASFILES := $(shell cd src && find -type f -name '*.S')
 override NASMFILES := $(shell cd src && find -type f -name '*.asm')
 # each source file will have an obj file
 override OBJ := $(addprefix obj/,$(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o))
+override DEP_OBJ := $(addprefix obj/deps/,$(DEP_CFILES:.c=.c.o))
 # find dependencies using gccs -MMD -MP
 override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
+override DEP_HEADER_DEPS := $(addprefix obj/deps/,$(DEP_CFILES:.c=.c.d))
 
 .PHONY: all
 all: bin/$(KERNEL_NAME)
-
-src/limine.h:
-    curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
 # generate the final kernel executable.
 # for now, stack tracing is implemented by linking the kernel executable,
 # extracting the required symbols from it, saving these into an array
 # and finally recompiling with the symbols included
-bin/$(KERNEL_NAME): GNUmakefile linker.ld $(OBJ)
+bin/$(KERNEL_NAME): Makefile linker.ld $(OBJ) $(DEP_OBJ)
 	mkdir -p "$$(dirname $@)"
-	$(LD) $(OBJ) $(LDFLAGS) -o $@
-	python3 ../prepsymboltable.py bin/symboltable.c
+	$(LD) $(OBJ) $(DEP_OBJ) $(LDFLAGS) -o $@
+	python3 prepsymboltable.py bin/symboltable.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c bin/symboltable.c -o obj/symboltable.o
-	$(LD) $(OBJ) $(LDFLAGS) obj/symboltable.o -o $@
+	$(LD) $(OBJ) $(DEP_OBJ) $(LDFLAGS) obj/symboltable.o -o $@
 
 -include $(HEADER_DEPS)
+-include $(DEP_HEADER_DEPS)
 
 # c
-obj/%.c.o: src/%.c GNUmakefile include/limine.h
+obj/%.c.o: src/%.c Makefile deps/include/limine.h
+	mkdir -p "$$(dirname $@)"
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+
+obj/deps/%.c.o: deps/src/%.c Makefile deps/include/limine.h
 	mkdir -p "$$(dirname $@)"
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # gas
-obj/%.S.o: src/%.S GNUmakefile
+obj/%.S.o: src/%.S Makefile
 	mkdir -p "$$(dirname $@)"
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
 # nasm
-obj/%.asm.o: src/%.asm GNUmakefile
+obj/%.asm.o: src/%.asm Makefile
 	mkdir -p "$$(dirname $@)"
 	nasm $(NASMFLAGS) $< -o $@
 
 .PHONY: clean
 clean:
+	$(MAKE) -C deps clean
 	rm -rf bin obj
 
 .PHONY: clean-full
-clean-full: clean
-	rm -f src/limine.h
+clean-full:
+	$(MAKE) -C deps clean-full
+	rm -rf bin obj

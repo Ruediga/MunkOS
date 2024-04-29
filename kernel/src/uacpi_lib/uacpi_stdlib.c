@@ -1,4 +1,4 @@
-#include "uacpi_lib/uacpi_stdlib.h"
+#include "uacpi_stdlib.h"
 
 #include "memory.h"
 #include "kprintf.h"

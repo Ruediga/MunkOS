@@ -185,8 +185,14 @@ void kernel_entry(void)
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
 
     // flanterm (https://github.com/mintsuki/flanterm)
-    ft_ctx = flanterm_fb_simple_init(
-        framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch);
+    ft_ctx = flanterm_fb_init(
+        NULL, NULL, framebuffer->address, framebuffer->width,
+        framebuffer->height, framebuffer->pitch,
+        framebuffer->red_mask_size, framebuffer->red_mask_shift,
+        framebuffer->green_mask_size, framebuffer->green_mask_shift,
+        framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 1, 0, 0, 0
+    );
 
     init_serial();
 

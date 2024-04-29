@@ -1,0 +1,11 @@
+error_log.txt
+serial_log.txt
+image.img
+image.iso
+
+**/obj/
+**/bin/
+**/deps/*
+
+tools/ovmf
+tools/limine

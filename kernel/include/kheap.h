@@ -14,7 +14,7 @@
 #define KMALLOC_ALLOC_SIZES 10
 
 // enables allocate use-after-free sanitizer and overflow checks
-#define CONFIG_SLAB_SANITIZE
+//#define CONFIG_SLAB_SANITIZE
 
 #ifdef CONFIG_SLAB_SANITIZE
 // maybe just zero it?

@@ -1,8 +1,22 @@
 # MunkOS
 
-Future Operating System very early on in development for learning purposes with simplicity in mind.
+Operating System very early on in development for learning purposes with simplicity in mind.
 
-Currently, MunkOS only consists of a kernel (with very minimal functionality), supports the x86_64 architecture for now, and boots with the Limine Bootloader.
+Currently, MunkOS only consists of a kernel (with very minimal functionality), supports only the x86_64 architecture (for now), and boots with the Limine Bootloader.
+
+# Structure
+
+Do not question my build system. Cmake is awful, and I am too lazy to learn meason.
+
+```md
+.
+├── kernel
+│   ├── deps            ->  dependencies
+│   ├── include         ->  includes
+│   └── src             ->  source files
+├── res                 ->  config files and other misc stuff
+└── tools               ->  third party stuff and scripts
+``````
 
 # Building
 
@@ -10,11 +24,11 @@ Since I don't provide a custom toolchain script yet, compilation is only possibl
 
 You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, nix, apk, ...):
 
-### Arch / Manjaro (& other pacman based distros)
+### Arch / Manjaro (pacman)
 
 > sudo pacman -S git gcc build-essential make xorriso gdisk mtools curl python3 qemu
 
-### Ubuntu / Debian / Mint (& other apt based distros)
+### Ubuntu / Debian / Mint (apt)
 
 > sudo apt install git gcc build-essential make gdisk mtools curl python3 qemu-system-x86
 
