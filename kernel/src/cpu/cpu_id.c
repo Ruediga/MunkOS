@@ -1,11 +1,19 @@
 #include <cpuid.h>
-#include <stdint.h>
 
 #include "cpu_id.h"
 #include "kheap.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "interrupt.h"
+
+inline void cpuid(struct cpuid_ctx *ctx) {
+    __asm__ volatile (
+        "cpuid"
+        : "=a" (ctx->eax), "=b" (ctx->ebx), "=c" (ctx->ecx), "=d" (ctx->edx)
+        : "a" (ctx->leaf)
+        :
+    );
+}
 
 // 13 chars (including \0)
 static void cpuid_leaf0x0(struct cpuid_data_common *data)
@@ -107,11 +115,11 @@ void cpuid_compatibility_check(struct cpuid_data_common *data)
     uint8_t okay = 1;
 
     // x2APIC
-    if (!(data->feature_flags_ecx & (1 << 21))) okay = 0;
+    //if (!(data->feature_flags_ecx & (1 << 21))) okay = 0;
     // SSE4.2
-    if (!(data->feature_flags_ecx & (1 << 20))) okay = 0;
+    //if (!(data->feature_flags_ecx & (1 << 20))) okay = 0;
 
-    // can multicore
+    // smp
     if (!(data->feature_flags_edx & (1 << 28))) okay = 0;
     // FXSAVE and FXRSTOR
     if (!(data->feature_flags_edx & (1 << 24))) okay = 0;

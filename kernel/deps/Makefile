@@ -15,6 +15,7 @@
 all: include/uacpi include/limine.h include/flanterm
 
 flanterm:
+	rm -rf flanterm
 	@echo "> cloning newest version of flanterm, this MAY include breaking changes"
 	git clone https://github.com/mintsuki/flanterm
 
@@ -31,6 +32,7 @@ include/limine.h:
 	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
 uACPI:
+	rm -rf uACPI
 	@echo "> cloning newest version of uACPI, this MAY include breaking changes"
 	git clone https://github.com/UltraOS/uACPI
 

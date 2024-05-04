@@ -4,22 +4,22 @@
 #include "cpu.h"
 #include "kprintf.h"
 
-struct __attribute__((packed)) {
+struct comp_packed {
     segment_descriptor gdts[5];
     system_segment_descriptor tss;
 } gdt;
 
-struct __attribute__((packed)) {
+struct comp_packed {
     uint16_t size;
     uintptr_t gdt_ptr;
 } gdtr;
 
 void init_gdt(void)
 {
-    // null descriptor
+    // null descriptor, off = 0
     gdt.gdts[0] = (segment_descriptor){ 0 };
 
-    // 64 bit kernel code segment
+    // 64 bit kernel code segment, off = 8
     gdt.gdts[1] = (segment_descriptor){
         0, 0, 0,
         // Present, Segment, Executable code, Read- and Writeable
@@ -27,7 +27,7 @@ void init_gdt(void)
         // flags Granularity and Long mode
         0b10100000, 0
     };
-    // 64 bit kernel data segment
+    // 64 bit kernel data segment, off = 16
     gdt.gdts[2] = (segment_descriptor){
         0, 0, 0,
         // Present, Segment, Read- and Writeable
@@ -35,7 +35,7 @@ void init_gdt(void)
         // flags Granularity and Long mode
         0b10100000, 0
     };
-    // 64 bit user code segment
+    // 64 bit user code segment, off = 24
     gdt.gdts[3] = (segment_descriptor){
         0, 0, 0,
         // Present, Segment, Read- and Writeable
@@ -43,7 +43,7 @@ void init_gdt(void)
         // flags Granularity and Long mode
         0b10100000, 0
     };
-    // 64 bit user data segment
+    // 64 bit user data segment, off = 32
     gdt.gdts[4] = (segment_descriptor){
         0, 0, 0,
         // Present, Segment, Read- and Writeable
@@ -53,7 +53,7 @@ void init_gdt(void)
     };
 
     // tss
-    gdt.tss.descriptor.limit_low = sizeof(tss);
+    gdt.tss.descriptor.limit_low = sizeof(struct task_state_segment);
     gdt.tss.descriptor.base_low = 0;
     gdt.tss.descriptor.base_mid = 0;
     // Present, Executable, Accessed
@@ -75,10 +75,10 @@ void rld_tss(struct task_state_segment *tss_address)
 {
     static k_spinlock_t lock;
 
-    acquire_lock(&lock);
+    spin_lock(&lock);
 
     gdt.tss.base = (uint32_t)((uintptr_t)tss_address >> 32);
-    gdt.tss.descriptor.limit_low = sizeof(tss);
+    gdt.tss.descriptor.limit_low = sizeof(struct task_state_segment);
     gdt.tss.descriptor.base_low = (uint16_t)((uintptr_t)tss_address);
     gdt.tss.descriptor.base_mid = (uint8_t)((uintptr_t)tss_address >> 16);
     // Present, Executable, Accessed
@@ -95,7 +95,7 @@ void rld_tss(struct task_state_segment *tss_address)
         : : "rm" ((uint16_t)40) : "memory"
     );
 
-    release_lock(&lock);
+    spin_unlock(&lock);
 }
 
 void rld_gdt()

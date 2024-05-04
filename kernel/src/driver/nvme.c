@@ -291,7 +291,7 @@ static void nvme_controller_reset(volatile struct nvme_controller_properties *pr
     // turn controller off
     properties->cc = properties->cc & ~0b1;
     // wait until csts.rdy turns on
-    while (properties->csts & NVME_STATUS_READY) __asm__ ("pause");
+    while (properties->csts & NVME_STATUS_READY) arch_spin_hint();
 }
 
 // since [at least] the admin queues require cc.mps alignment
@@ -367,7 +367,7 @@ static nvme_ccmd_t nvme_queue_poll_single_cqe(struct nvme_queue_ctx *queue)
     for (; deadlock_count <= 1000000; deadlock_count++) {
         status = queue->cq.data[queue->cq.head].status;
         if ((status & 1) == queue->cq.phase) break;
-        __asm__ ("pause");
+        arch_spin_hint();
     }
     if (deadlock_count >= 1000000) kpanic(0, NULL, "nvme driver deadlocked while polling cqe\n");
 
@@ -487,7 +487,7 @@ void init_nvme_controller(pci_device *dev)
 
     // reenable controller
     controller->properties->cc = controller->properties->cc | 0b1;
-    while (!(controller->properties->csts & NVME_STATUS_READY)) __asm__ ("pause");
+    while (!(controller->properties->csts & NVME_STATUS_READY)) arch_spin_hint();
     if (controller->properties->csts & (1 << 1)) kpanic(0, NULL, "NVME_INIT: fatal\n");
 
     // register msi-x interrupt [TODO]
@@ -739,7 +739,7 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
 // (planned) Avoid caching with huge batched workloads and read them asynchronously
 int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
 {
-    acquire_lock(&dev->lock);
+    spin_lock(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially copy cacheblock into buffer
@@ -771,7 +771,7 @@ int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
-    release_lock(&dev->lock);
+    spin_unlock(&dev->lock);
     return bytes_read;
 }
 
@@ -779,7 +779,7 @@ fail:
 // (planned) Avoid caching with huge batched workloads and write them asynchronously
 int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
 {
-    acquire_lock(&dev->lock);
+    spin_lock(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially write buffer into cacheblock
@@ -812,6 +812,6 @@ int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
-    release_lock(&dev->lock);
+    spin_unlock(&dev->lock);
     return bytes_written;
 }

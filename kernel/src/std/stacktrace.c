@@ -1,10 +1,11 @@
 #include "stacktrace.h"
 #include "kprintf.h"
 #include "vmm.h"
+#include "compiler.h"
 
 #include <stdbool.h>
 
-__attribute__((weak)) struct stacktrace_symbol_table_entry stacktrace_symtable[] = {
+comp_weak struct stacktrace_symbol_table_entry stacktrace_symtable[] = {
     {0x0, "INVALID_WEAK"}
 };
 

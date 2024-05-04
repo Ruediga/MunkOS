@@ -4,9 +4,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define lfence() {__asm__ volatile ("lfence");}
+#define sfence() {__asm__ volatile ("sfence");}
+#define mfence() {__asm__ volatile ("mfence");}
+
+#define arch_spin_hint() __asm__ volatile ("pause")
+
 typedef uint8_t int_status_t;
 
-struct thread_t;
+struct task;
 
 typedef struct {
     size_t lock;
@@ -32,11 +38,13 @@ struct task_state_segment {
 };
 
 typedef struct cpu_local_t {
-    size_t id;          // core id
-    uint32_t lapic_id;  // lapic id of the processor
+    size_t id;                      // core id
+    uint32_t lapic_id;              // lapic id of the processor
     uint64_t lapic_clock_frequency;
+
     struct task_state_segment tss;
-    struct thread_t *idle_thread;
+    struct task *idle_thread;
+    struct task *curr_thread;
 } cpu_local_t;
 
 static inline uint64_t read_msr(uint32_t reg)
@@ -61,7 +69,7 @@ static inline void write_msr(uint32_t reg, uint64_t value)
     );
 }
 
-// fs base
+// fs base: leave free for userspace
 static inline void write_fs_base(uintptr_t address) {
     write_msr(0xc0000100, address);
 }
@@ -70,22 +78,33 @@ static inline uintptr_t read_fs_base(void) {
     return read_msr(0xc0000100);
 }
 
-// gs base
-static inline void write_gs_base(struct thread_t *address) {
-    write_msr(0xc0000101, (uintptr_t)address);
+// gs base: leave free for userspace
+static inline void write_gs_base(uintptr_t val) {
+    write_msr(0xc0000101, (uintptr_t)val);
 }
 
-static inline struct thread_t *read_gs_base(void) {
-    return (struct thread_t *)read_msr(0xc0000101);
+static inline  uintptr_t read_gs_base(void) {
+    return read_msr(0xc0000101);
 }
 
-// kernel gs base
-static inline void write_kernel_gs_base(struct thread_t *address) {
+// kernel gs base: keep cpu_local_t * to this cpu here
+static inline void write_kernel_gs_base(cpu_local_t *address) {
     write_msr(0xc0000102, (uintptr_t)address);
 }
 
-static inline struct thread_t *read_kernel_gs_base(void) {
-    return (struct thread_t *)read_msr(0xc0000102);
+static inline cpu_local_t *read_kernel_gs_base(void) {
+    return (cpu_local_t *)read_msr(0xc0000102);
+}
+
+// tsc aux register (rdpid and rdtscp)
+static inline void write_tsc_aux(uint64_t pid) {
+    write_msr(0xC0000103, pid);
+}
+
+static inline uint64_t read_processor_id(void) {
+    uint64_t pid;
+    __asm__ volatile ("rdpid %0" : "=r" (pid));
+    return pid;
 }
 
 static inline int_status_t ints_fetch_disable(void) {
@@ -113,6 +132,6 @@ static inline void ints_on(void) {
 void nmi_enable(void);
 void nmi_disable(void);
 
-void acquire_lock(k_spinlock_t *lock);
-void release_lock(k_spinlock_t *lock);
-bool acquire_lock_timeout(k_spinlock_t *lock, size_t millis);
+void spin_lock(k_spinlock_t *lock);
+void spin_unlock(k_spinlock_t *lock);
+bool spin_lock_timeout(k_spinlock_t *lock, size_t millis);

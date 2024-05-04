@@ -102,6 +102,9 @@ static uint64_t *pml4_to_pt(uint64_t *pml4, uint64_t va, bool force)
 
 static void init_kpm(void)
 {
+    // [FIXME] for some reason, this is INCREDIBLY slow on real hardware.
+    // try mapping with bigger page sizes.
+
     if (!kernel_address_request.response) {
         kpanic(0, NULL, "limine kernel address request not answered\n\r");
     }
@@ -201,7 +204,7 @@ static void init_kpm(void)
 // maps a page size aligned VA to a page size aligned PA
 void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
 {
-    acquire_lock(&map_page_lock);
+    spin_lock(&map_page_lock);
     size_t pt_index = EXTRACT_BITS(va, 12ul, 20ul);
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, true);
     if (pt == NULL) {
@@ -212,17 +215,17 @@ void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t
 
     tlb_flush();
 
-    release_lock(&map_page_lock);
+    spin_unlock(&map_page_lock);
 }
 
 // return 1 if successful, 0 if nothing got unmapped
 bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 {
-    acquire_lock(&map_page_lock);
+    spin_lock(&map_page_lock);
     size_t pt_index = (va & (0x1fful << 12)) >> 12;
     uint64_t *pt = pml4_to_pt((uint64_t *)pmc->pml4_address, va, false);
     if (pt == NULL) {
-        release_lock(&map_page_lock);
+        spin_unlock(&map_page_lock);
         return false;
     }
 
@@ -236,7 +239,7 @@ bool vmm_unmap_single_page(page_map_ctx *pmc, uintptr_t va, bool free_pa)
 
     tlb_flush();
 
-    release_lock(&map_page_lock);
+    spin_unlock(&map_page_lock);
 
     return true;
 }

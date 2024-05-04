@@ -74,7 +74,7 @@ struct page {
             struct page *comp_head;
         };
     };
-} __attribute__((aligned(STRUCT_PAGE_ALIGNMENT)));
+} comp_aligned(STRUCT_PAGE_ALIGNMENT);
 
 // fill this structure up with phys_stat_memory(struct phys_mem_stat *stat),
 // so atomicity is guaranteed
@@ -116,6 +116,10 @@ static inline size_t page2idx(struct page *page) {
         kpanic(0, NULL, "page %p is not in range\n", page);
     }
     return ((uintptr_t)page - (uintptr_t)pages) / sizeof(struct page);
+}
+
+static inline uintptr_t page2phys(struct page *page) {
+    return page2idx(page) << PAGE_SHIFT;
 }
 
 // returns in what page size category a range falls, in case of unalignment, returns the higher order

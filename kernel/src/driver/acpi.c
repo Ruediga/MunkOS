@@ -77,7 +77,7 @@ void parse_acpi(void)
     if (!(madt_ptr = get_sdt("APIC")) || !validate_table(&madt_ptr->header)) {
         kpanic(0, NULL, "MADT not found\n");
     }
-    // PCIe config, removed bcus packed || !validate_table(&mcfg_ptr->header)
+    // PCIe config, removed bcus comp_packed || !validate_table(&mcfg_ptr->header)
     if (!(mcfg_ptr = get_sdt("MCFG"))) {
         kpanic(0, NULL, "MCFG not found\n");
     }

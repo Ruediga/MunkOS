@@ -1,28 +1,16 @@
 # MunkOS
 
-Operating System very early on in development for learning purposes with simplicity in mind.
+MunkOS is an attempt to write a usable, educative, real-time operating system for x86-64 based computers (and planned support for aarch64) with simplicity in mind, that actually runs on real hardware successfully.
 
-Currently, MunkOS only consists of a kernel (with very minimal functionality), supports only the x86_64 architecture (for now), and boots with the Limine Bootloader.
+MunkOS core consists of a preemptively multi-tasked, smp-enabled kernel.
 
-# Structure
-
-Do not question my build system. Cmake is awful, and I am too lazy to learn meason.
-
-```md
-.
-├── kernel
-│   ├── deps            ->  dependencies
-│   ├── include         ->  includes
-│   └── src             ->  source files
-├── res                 ->  config files and other misc stuff
-└── tools               ->  third party stuff and scripts
-``````
+Currently, only the kernel (with yet quite minimal functionality), is being worked on, but you can look forward to userspace features soon.
 
 # Building
 
-Since I don't provide a custom toolchain script yet, compilation is only possible on x86_64 hosts.
+Since I don't provide a custom cross-compiler toolchain script yet, compilation is only possible on x86_64 hosts.
 
-You're going to have the least problems using Linux distro like Arch (or derivatives) (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, nix, apk, ...):
+You're going to have the least problems using Linux distro (WSL may work too) to build from source yourself. Building requires the following packages, which you can install with your distros package manager (pacman, apt, nix, apk, ...):
 
 ### Arch / Manjaro (pacman)
 
@@ -37,21 +25,38 @@ In case the xorriso installation fails, try running `sudo add-apt-repository uni
 The following make-targets build the image / iso and run it with a default qemu config
 
 ```sh
+all (default)
 run-iso-bios
 run-iso-uefi
 run-img-bios
 run-img-uefi
 ```
 
-Of course, a `clean` target exists too, and the `clean-full` target gets rid of everything.
+I recommend looking at the qemu flags in `Makefile` if qemu decides to not work.
+
+Of course, a `clean` target exists too, and the `clean-full` target gets rid of dependencies too.
 
 If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund from the manufacturer.
 
 ### Third party
 
-- [Limine by mintsuki](https://www.github.com/limine-bootloader/limine)
+- [Limine bootloader by mintsuki](https://www.github.com/limine-bootloader/limine)
 - [flanterm by mintsuki](https://github.com/mintsuki/flanterm)
 - [uACPI by CopyObject abuser](https://github.com/UltraOS/uACPI)
+
+# Structure
+
+Please don't question my build system btw
+
+```
+.
+├── kernel
+│   ├── deps            ->  dependencies
+│   ├── include         ->  includes
+│   └── src             ->  source files
+├── res                 ->  config files and misc
+└── tools               ->  third party and scripts
+``````
 
 # Features
 
@@ -61,55 +66,57 @@ Currently, I prioritize work on the kernel.
 
 This list will get a rework as soon as I care to do that
 
-- [x] PMM (buddy / bitmap)
-- [x] VMM
+- [x] PMM (buddy & bitmap)
 - [x] Kheap (slab)
-- [x] Interrupts
-- [x] ACPI (uACPI by CopyObject abuser)
-- [x] I/O APIC
-- [x] LAPIC
-- [x] Timer Interface (WIP)
-- [x] PS2 driver
+- [x] VMM
+- [x] ACPI (+ uACPI)
 - [x] SMP
-- [x] Tasks
-- [x] Scheduler
-- [x] PCIe
-- [x] NVME driver
-- [x] GPT / MBR
+- [x] Multitasking
+- [x] Preemptive scheduler
+- [x] Timer interface (WIP)
+- [x] Event interface (WIP)
+
+WIP:
+
+- [ ] VFS
+- [ ] device interface
+- [x] partition devices
 - [ ] FAT
-- [ ] ext2
-- [-] devices
-- [-] VFS
-- [-] devtmpfs
-- [ ] Userspace
+- [ ] ext
+
+### Hardware
+
+- [x] PS2 keyboard
+- [x] PCI(e)
+- [x] NVME
 
 
 ### TODO
 
 #### FIXME
 
-scheduler API
+nvme controller reporting ct=0 on some laptops
 
-tlb shootdown
-
-pci multiple bridges?
+sometimes broken stacktrace
 
 #### Features
 
+tlb shootdowns
+
+pci multiple bridges
+
 require x86-64 toolchain
 & manage dependencies better
-
-fix stacktrace at higher optimizations
 
 a proper device / driver interface
 
 syscalls
 
-finish vfs
+vfs
 
 ### Long Term Goals
 
-I want MunkOS to be a primarily dependency free OS, so replacing third party libraries I use for convinience during development with my own is something I intend to do at some point™.
+I want MunkOS to be a primarily dependency free OS, so replacing third party libraries I use for convinience during development with my own is something I want to do at some point™.
 
 <blockquote style="border-left: 0.5em solid rgb(30,144,255);
     padding: 1em; font-size: 1.1em;">

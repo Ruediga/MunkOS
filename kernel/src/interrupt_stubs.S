@@ -2,8 +2,8 @@
 .extern handlers
 
 .macro _swapgs_if_user
-    cmpq $24, 24(%rsp) # CS (kernel code 64 bit): does the interrupt come from usermode?
-    je 1f
+    cmpq $0x18, 24(%rsp) # does the interrupt come from usermode?
+    jne 1f
     swapgs
 	#movl $0xC0000101, %ecx
 	#rdmsr
@@ -54,9 +54,12 @@ isr_handler_stub:
     movq %es, %rax
     pushq %rax
 
+    cld
+
     # void default_exception_handler(cpu_ctx_t *regs)
     movq %rsp, %rdi
     movq 168(%rsp), %rbx        # read n from the stack
+# [TODO] base, offset, scale
     shlq $3, %rbx               # offset = n * 8
     leaq handlers(%rip), %rax   # load the pointers base address
     addq %rbx, %rax             # base + offset

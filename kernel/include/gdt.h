@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "compiler.h"
+
 struct task_state_segment;
 
 /*
@@ -24,25 +26,14 @@ typedef struct {
     uint8_t access_byte;
     uint8_t limit_high_and_flags;
     uint8_t base_high;
-} __attribute__((packed)) segment_descriptor;
+} comp_packed segment_descriptor;
 
 // for tss and ldt
 typedef struct {
     segment_descriptor descriptor;
     uint32_t base;
     uint32_t reserved;
-} __attribute__((packed)) system_segment_descriptor;
-
-// task state segment
-typedef struct {
-    uint32_t res_0;
-    uint64_t rsp[3]; // stack pointers
-    uint64_t res_1;
-    uint64_t ist[7]; // interrupt stack tables
-    uint64_t res_2;
-    uint16_t res_3;
-    uint16_t io_permission_bitmap;
-} __attribute__((packed)) tss;
+} comp_packed system_segment_descriptor;
 
 void init_gdt(void);
 void rld_gdt();

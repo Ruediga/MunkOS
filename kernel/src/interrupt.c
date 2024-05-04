@@ -6,6 +6,7 @@
 #include "scheduler.h"
 #include "stacktrace.h"
 #include "smp.h"
+#include "compiler.h"
 
 #include <stdarg.h>
 
@@ -14,12 +15,12 @@ uintptr_t handlers[256] = {0};
 static k_spinlock_t int_register_vec_lock;
 static k_spinlock_t int_erase_vec_lock;
 
-struct __attribute__((packed)) {
+struct comp_packed {
     uint16_t size;
     uint64_t offset;
 } idtr;
 
-__attribute__((aligned(16))) idt_descriptor idt[256];
+comp_aligned(16) idt_descriptor idt[256];
 
 extern uint64_t isr_stub_table[];
 
@@ -97,7 +98,7 @@ void print_register_context(cpu_ctx_t *regs)
 }
 
 // kernel panic
-void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...)
+void comp_noreturn kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...)
 {
     ints_off();    // if manually called interrupts may be on
 
@@ -105,7 +106,7 @@ void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char
         goto quiet;
     }
 
-    //release_lock(&kprintf_lock); // kprintf may be locked ?
+    //spin_unlock(&kprintf_lock); // kprintf may be locked ?
 
     kprintf("\n\n\033[41m<-- KERNEL PANIC -->\n\r");
 
@@ -136,7 +137,7 @@ void __attribute__((noreturn)) kpanic(uint8_t flags, cpu_ctx_t *regs, const char
 quiet:
     __asm__ ("hlt");
 
-    __builtin_unreachable();
+    unreachable();
 }
 
 void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)
@@ -169,25 +170,25 @@ void init_idt(void)
 
 void interrupts_register_vector(size_t vector, uintptr_t handler)
 {
-    acquire_lock(&int_register_vec_lock);
+    spin_lock(&int_register_vec_lock);
     if (handlers[vector] != (uintptr_t)default_interrupt_handler || !handler) {
         // panic
         kprintf("Failed to register vector %lu at 0x%p\n", vector, handler);
     }
     handlers[vector] = handler;
-    release_lock(&int_register_vec_lock);
+    spin_unlock(&int_register_vec_lock);
 }
 
 void interrupts_erase_vector(size_t vector)
 {
-    acquire_lock(&int_erase_vec_lock);
+    spin_lock(&int_erase_vec_lock);
     if (handlers[vector] == (uintptr_t)default_interrupt_handler || vector < 32) {
         // panic
         kprintf("Failed to erase vector %lu\n", vector);
         __asm__ ("hlt");
     }
     handlers[vector] = (uintptr_t)default_interrupt_handler;
-    release_lock(&int_erase_vec_lock);
+    spin_unlock(&int_erase_vec_lock);
 }
 
 inline void load_idt(void)

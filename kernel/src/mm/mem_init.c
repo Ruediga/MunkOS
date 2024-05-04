@@ -13,6 +13,7 @@
 #include "macros.h"
 #include "kprintf.h"
 #include "memory.h"
+#include "compiler.h"
 
 // for each allocation keep a record so we can map memory
 // allocated through it into our page tables
@@ -102,7 +103,7 @@ void *early_mem_alloc(size_t size)
     }
 
     if (early_mem_allocations > early_mem_max_allocations) {
-        // we have a limited amount of allocations because of vmm stuff
+        // we have a limited amount of allocations because of vmm mapping tracking
         kpanic(0, NULL, "tried to exceeded max allocation amount for early_mem\n");
     }
 
@@ -124,8 +125,8 @@ void *early_mem_alloc(size_t size)
         }
     }
 
-    kpanic(0, NULL, "early_mem_alloc(%lu) failed\n", size);
-    __builtin_unreachable();
+    kpanic(KPANIC_FLAGS_DONT_TRACE_STACK | KPANIC_FLAGS_THIS_CORE_ONLY, NULL, "early_mem_alloc(%lu) failed\n", size);
+    unreachable();
     return NULL;
 }
 

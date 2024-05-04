@@ -8,6 +8,7 @@
 #include "vmm.h"
 #include "cpu.h"
 #include "apic.h"
+#include "time.h"
 
 struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
@@ -34,31 +35,31 @@ static void processor_core_entry(struct limine_smp_info *smp_info)
     cpu_local_t *this_cpu = (cpu_local_t *)smp_info->extra_argument;
     rld_tss(&this_cpu->tss);
 
-    thread_t *idle_thread = kcalloc(1, sizeof(thread_t));
-    idle_thread->owner = kernel_task;
-    idle_thread->cpu = this_cpu;
-    idle_thread->gs_base = idle_thread;
-    idle_thread->fs_base = 0;
+    struct task *idle_thread = scheduler_new_idle_thread();
 
     this_cpu->idle_thread = idle_thread;
 
-    write_gs_base(idle_thread);
-    write_kernel_gs_base(idle_thread);
+    write_gs_base(0x12345);
+    write_kernel_gs_base(this_cpu);
 
-    acquire_lock(&somelock);
+    // NOT lapic id in IA32_TSC_AUX
+    if (tscp_supported())
+        write_tsc_aux(this_cpu->id);
+
+    spin_lock(&somelock);
     init_lapic();
-    release_lock(&somelock);
+    spin_unlock(&somelock);
 
     kprintf("  - cpu %lu: lapic_id=%u, bus_frequency=%luMHz booted up\n",
         this_cpu->id, this_cpu->lapic_id, this_cpu->lapic_clock_frequency / 1000000);
     startup_checksum++;
 
-    // if main cpu, return to normal execution
+    // if bsp cpu, return to main task
     if (this_cpu->lapic_id == smp_response->bsp_lapic_id) {
         return;
     }
 
-    wait_for_scheduling();
+    switch2task(idle_thread);
 }
 
 /* struct limine_smp_info {
@@ -91,7 +92,7 @@ void boot_other_cores(void)
     }
 
     while (startup_checksum < smp_cpu_count)
-        __asm__ ("pause");
+        arch_spin_hint();
 
     kprintf("  - successfully booted up all %lu cores\n", smp_cpu_count);
     smp_initialized = 1;

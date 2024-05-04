@@ -10,6 +10,7 @@ override HOST_LIBS :=
 all: limine ovmf
 
 limine:
+	rm -rf limine
 	git clone https://github.com/limine-bootloader/limine.git --branch=v6.x-branch-binary --depth=1
 	$(MAKE) -C limine \
 		CC="$(HOST_CC)" \

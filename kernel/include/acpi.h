@@ -26,7 +26,7 @@
 #define MADT_ENTRY_MP_WAKEUP 0x10
 
 // https://uefi.org/htmlspecs/ACPI_Spec_6_4_html
-struct __attribute__ ((packed)) acpi_rsdp {
+struct comp_packed acpi_rsdp {
     // rsdt size: 20
     char signature[8];
     uint8_t checksum;
@@ -59,7 +59,7 @@ struct acpi_rsdt {
   uint8_t ptr[];
 };
 
-struct __attribute__((packed)) acpi_gas {
+struct comp_packed acpi_gas {
     uint8_t address_space;
     uint8_t bit_width;
     uint8_t bit_offset;
@@ -145,7 +145,7 @@ struct acpi_madt {
     uint8_t entries[];
 };
 
-struct __attribute__((packed)) acpi_mcfg_entry {
+struct comp_packed acpi_mcfg_entry {
     uint64_t base;
     uint16_t segment;
     uint8_t host_start;
@@ -154,25 +154,25 @@ struct __attribute__((packed)) acpi_mcfg_entry {
 };
 
 // unpacking breaks stuff
-struct __attribute__((packed)) acpi_mcfg {
+struct comp_packed acpi_mcfg {
     struct acpi_sdt_header header;
     uint64_t reserved;
     struct acpi_mcfg_entry entries[];
 };
 
-struct __attribute__((packed)) acpi_madt_header {
+struct comp_packed acpi_madt_header {
     uint8_t lcst_id;
     uint8_t length;
 };
 
-struct __attribute__((packed)) acpi_lapic {
+struct comp_packed acpi_lapic {
     struct acpi_madt_header header;
     uint8_t acpi_processor_uid;
     uint8_t apic_id;
     uint32_t flags;
 };
 
-struct __attribute__((packed)) acpi_ioapic {
+struct comp_packed acpi_ioapic {
     struct acpi_madt_header header;
     uint8_t io_apic_id;
     uint8_t reserved;
@@ -180,7 +180,7 @@ struct __attribute__((packed)) acpi_ioapic {
     uint32_t global_system_interrupt_base; // ints start here
 };
 
-struct __attribute__((packed)) acpi_iso {
+struct comp_packed acpi_iso {
     struct acpi_madt_header header;
     uint8_t bus_isa;
     uint8_t source_irq;

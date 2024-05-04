@@ -279,19 +279,24 @@ void calibrate_lapic_timer(void)
 
     calibration_probe_count = 0;
 
-    pit_rate_init(LAPIC_TIMER_CALIBRATION_FREQ);
+    pit_rate_set(LAPIC_TIMER_CALIBRATION_FREQ);
     ioapic_redirect_irq(0, INT_VEC_GENERAL_PURPOSE, get_this_cpu()->lapic_id);
     interrupts_register_vector(INT_VEC_GENERAL_PURPOSE, (uintptr_t)calibrate_lapic_timer_pit_callback);
     ints_on();
 
     while (calibration_probe_count < LAPIC_TIMER_CALIBRATION_PROBES) {
-        __asm__ ("pause");
+        arch_spin_hint();
     }
 
     ints_off();
+    // should be fine since the current task here should be the idle thread
+    cpu_local_t *this_cpu = get_this_cpu();
+    ints_on();
 
-    ioapic_remove_irq(0, get_this_cpu()->lapic_id);
+    ioapic_remove_irq(0,this_cpu->lapic_id);
     interrupts_erase_vector(INT_VEC_GENERAL_PURPOSE);
+
+    ints_off();
 
     // calculate apic bus frequency
     uint64_t timer_delta = calibration_timer_start - calibration_timer_end;
@@ -327,7 +332,7 @@ void lapic_timer_halt(void)
     lapic_write(LAPIC_TIMER_INITIAL_COUNT_REG, 0);
 }
 
-// send an interrupt in n us (max 4000000)
+// send an interrupt in n us (max 4000000 in qemu)
 void lapic_timer_oneshot_us(size_t vector, size_t us)
 {
     cpu_local_t *this_cpu = get_this_cpu();
@@ -354,7 +359,7 @@ void lapic_send_ipi(uint32_t lapic_id, uint32_t vector, enum LAPIC_ICR_DEST dest
     uint32_t icr_low = lapic_read(LAPIC_ICR_REG_LOW), icr_high;
 
     while (icr_low & (LAPIC_ICR_PENDING << 12))
-        __asm__ ("pause");
+        arch_spin_hint();
 
     icr_low = lapic_read(LAPIC_ICR_REG_LOW) & 0xFFF32000; // clear everything
     icr_high = lapic_read(LAPIC_ICR_REG_HIGH) & 0x00FFFFFF; // clear del field

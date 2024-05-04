@@ -23,6 +23,7 @@
 #include "serial.h"
 #include "nvme.h"
 #include "stacktrace.h"
+#include "compiler.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -39,6 +40,7 @@ static unsigned long pseudo_rand(unsigned long *seed) {
     return (*seed / 65536) % 32768;
 }
 
+// by @NotBonzo
 static int stress_test(void) {
     void *ptr = NULL;
     unsigned long sizes[20], i, j, test_cycles = 10000;
@@ -141,19 +143,45 @@ void init_acpi(void)
     // thank @CopyObject abuser
 }
 
-void kernel_main(void)
+void kernel_main(void *args)
 {
+    ints_on();
+
+    kprintf("i am t0 (main thread), args=%lu\n", args);
+
     stress_test();
 
-    kprintf("i am t0 (main thread)\n");
-
     init_pci();
+
     kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
 
     init_acpi();
 
+    rtc_time_ctx_t c = rd_rtc();
+    kprintf("UTC: century %hhu, year %hu, month %hhu, "
+        "day %hhu, hour %hhu, minute %hhu, second %hhu\n",
+        c.century, c.year, c.month, c.day, c.hour, c.minute, c.second);
+
+    for (int i = 0; i < 10; i++) {
+        size_t end = system_ticks + 1000;
+        while (system_ticks < end) {
+            arch_spin_hint();
+        }
+        kprintf("unix timestamp: %lu\n", unix_time);
+    }
+
     scheduler_kernel_thread_exit();
-}
+}cd .git/objects
+ls -al
+sudo chown -R yourname:yourgroup *
+
+You can tell yourname and yourgroup by:
+
+# for yourname
+whoami
+# for yourgroup
+id -g -n <yourname>
+
 
 void t2(void)
 {
@@ -223,8 +251,8 @@ void kernel_entry(void)
     init_vmm();
 
     // heap
-    slab_init();
     kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
+    slab_init();
 
     kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
     parse_acpi();
@@ -238,22 +266,16 @@ void kernel_entry(void)
     kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
 
-    kprintf("%s redirecting system timers...\n\r", kernel_okay_string);
-    init_pit();
-    rtc_init();
-
     kprintf("%s initializing time...\n\r", kernel_okay_string);
     time_init();
 
     ps2_init();
 
-    //scheduler_add_kernel_thread(t1);
-    //scheduler_add_kernel_thread(t2);
-    //scheduler_add_kernel_thread(t3);
+    scheduler_new_kernel_thread(kernel_main, NULL, TASK_PRIORITY_NORMAL);
 
-    scheduler_add_kernel_thread(kernel_main);
+    if (interrupts_enabled())
+        kpanic(0, NULL, "bad\n");
 
-    kprintf("bsp core waiting, active threads: %lu\n", kernel_task->threads.size);
-    // we should exit here
-    wait_for_scheduling();
+    switch_to_next_task();
+    unreachable();
 }

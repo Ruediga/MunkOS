@@ -1,5 +1,6 @@
 #include "serial.h"
 #include "io.h"
+#include "cpu.h"
 
 #include <stdint.h>
 #include <stddef.h>
@@ -41,7 +42,7 @@ bool init_serial(void) {
 void serial_out_char(enum serial_port port, char c)
 {
     // not ready to receive
-    while (!(inb(port + 5) & (1 << 5))) __asm__ ("pause");
+    while (!(inb(port + 5) & (1 << 5))) arch_spin_hint();
 
     outb(port + 0, c);
 }

@@ -2,6 +2,19 @@
 
 #include <stdint.h>
 
+typedef uint64_t qword;
+typedef uint32_t dword;
+typedef uint16_t word;
+typedef uint8_t byte;
+
+struct cpuid_ctx {
+    dword leaf;
+    dword eax;
+    dword ebx;
+    dword ecx;
+    dword edx;
+};
+
 // https://sandpile.org/x86/cpuid.htm
 struct cpuid_data_common {
     uint32_t highest_supported_std_func;
@@ -21,3 +34,5 @@ struct cpuid_data_common {
 
 void cpuid_common(struct cpuid_data_common *data);
 void cpuid_compatibility_check(struct cpuid_data_common *data);
+
+void cpuid(struct cpuid_ctx *ctx);

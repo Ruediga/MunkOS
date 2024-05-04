@@ -25,9 +25,9 @@
 #define ALIGN_DOWN(x, base) ((x) & ~((base) - 1))
 
 // convert bytes to other sizes
-#define KiB(n) ((n) / 0x400)
-#define MiB(n) (KiB((n)) / 0x400)
-#define GiB(n) (MiB((n)) / 0x400)
+#define KiB (0x400)
+#define MiB (KiB * 0x400)
+#define GiB (MiB * 0x400)
 
 // extract bits
 // EXTRACT_BITS(ul, ul, ul)

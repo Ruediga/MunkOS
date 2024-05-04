@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "compiler.h"
+
 // interrupt mappings. 0 - 31 cpu
 #define INT_VEC_PIT 32
 #define INT_VEC_RTC 33
@@ -14,15 +16,15 @@
 #define INT_VEC_LAPIC_IPI 200
 
 #define INT_VEC_SPURIOUS 254
-#define INT_VEC_GENERAL_PURPOSE 255 // this may only be used for locked operations and has to be freed
+#define INT_VEC_GENERAL_PURPOSE 253 // this may only be used for locked operations and has to be freed
 
-#define KPANIC_FLAGS_QUIET 1
-#define KPANIC_FLAGS_THIS_CORE_ONLY 2
-#define KPANIC_FLAGS_DONT_TRACE_STACK 3
+#define KPANIC_FLAGS_QUIET (1 << 0)
+#define KPANIC_FLAGS_THIS_CORE_ONLY (1 << 1)
+#define KPANIC_FLAGS_DONT_TRACE_STACK (1 << 2)
 
 extern uintptr_t handlers[256];
 
-typedef struct __attribute__((packed)) {
+typedef struct comp_packed {
     // stack growns downwards hence flipped around
     uint64_t es;
     uint64_t ds;
@@ -55,7 +57,7 @@ typedef struct __attribute__((packed)) {
     uint64_t ss;
 } cpu_ctx_t;
 
-typedef struct __attribute__((packed)) {
+typedef struct comp_packed {
     uint16_t offset_low;
     uint16_t selector;
     uint8_t ist;
@@ -79,5 +81,5 @@ static inline size_t interrupts_enabled()
 {
     uint64_t rflags;
     __asm__ volatile ("pushfq; pop %0" : "=rm" (rflags) : : "memory");
-    return (rflags & (1 << 9));
+    return !!(rflags & (1 << 9));
 }

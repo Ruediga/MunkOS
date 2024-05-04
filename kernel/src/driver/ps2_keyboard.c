@@ -3,6 +3,7 @@
 #include "smp.h"
 #include "apic.h"
 #include "interrupt.h"
+#include "kprintf.h"
 
 #include <stdint.h>
 
@@ -12,11 +13,9 @@
 uint8_t ps2_keyboard_vector = 0;
 
 uint8_t ps2_read(void) {
-    uint8_t out = 0;
-    // this only reads the last byte in the buffer
-    while (inb(0x64) & 1)
-        out = inb(0x60);
-    return out;
+    while ((inb(0x64) & 1) == 0)
+        ;
+    return inb(0x60);
 }
 
 void ps2_write(uint16_t port, uint8_t value) {
@@ -34,13 +33,13 @@ void ps2_write_config(uint8_t value) {
     ps2_write(0x60, value);
 }
 
-#include "kprintf.h"
 static void ps2_kb_handler(cpu_ctx_t *regs)
 {
     (void)regs;
     ps2_read();
-    kprintf("He he he\n");
     lapic_send_eoi_signal();
+
+    // trigger keyboard events
 }
 
 void ps2_init(void) {

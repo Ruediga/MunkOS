@@ -654,7 +654,7 @@ static size_t _etoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, d
 // internal vsnprintf
 static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen, const char *format, va_list va)
 {
-    acquire_lock(&kprintf_lock);
+    spin_lock(&kprintf_lock);
     unsigned int flags, width, precision, n;
     size_t idx = 0U;
 
@@ -1005,7 +1005,7 @@ static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen, const
     // termination
     out((char)0, buffer, idx < maxlen ? idx : maxlen - 1U, maxlen);
 
-    release_lock(&kprintf_lock);
+    spin_unlock(&kprintf_lock);
 
     // return written chars without terminating \0
     return (int)idx;

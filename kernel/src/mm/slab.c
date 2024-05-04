@@ -6,6 +6,7 @@
 #include "interrupt.h"
 #include "memory.h"
 #include "vmm.h"
+#include "compiler.h"
 
 // Basic slab allocator. Allocations on pow2 sized blocks are guaranteed to be aligned,
 // if allocated via the generic cache pools. When the sanitizer is enabled,
@@ -256,7 +257,7 @@ static void _attempt_free_full(struct slab_cache *c)
 static void *cache_alloc(struct slab_cache *c)
 {
     // lock everything for now
-    acquire_lock(&c->lock);
+    spin_lock(&c->lock);
 
     // prefer to allocate from partial slabs. if there aren't any,
     // allocate from full slabs. if there aren't any, allocate new full
@@ -290,7 +291,7 @@ static void *cache_alloc(struct slab_cache *c)
             part->freelist = (void *)*((uintptr_t *)part->freelist);
         }
 
-        release_lock(&c->lock);
+        spin_unlock(&c->lock);
         return ret;
     }
 
@@ -314,7 +315,7 @@ got_full:
         full->used_objs++;
         full->this_cache->total_objs_allocated++;
 
-        release_lock(&c->lock);
+        spin_unlock(&c->lock);
         return ret;
     }
 
@@ -322,7 +323,7 @@ got_full:
     new_slab(c, c->pages_per_slab);
     goto got_full;
 
-    __builtin_unreachable();
+    unreachable();
 }
 
 static struct slab *_find_corresponding_slab(void *addr)
@@ -337,7 +338,7 @@ static struct slab *_find_corresponding_slab(void *addr)
         return (struct slab *)this->comp_head;
     } else {
         kpanic(0, NULL, "Invalid slab flags for %p\n", addr);
-        __builtin_unreachable();
+        unreachable();
     }
 }
 
@@ -457,7 +458,7 @@ void kfree(void *addr)
     }
 #endif
 
-    acquire_lock(&s->this_cache->lock);
+    spin_lock(&s->this_cache->lock);
 
     // add object to slabs freelist
     *((uintptr_t *)addr) = (uintptr_t)s->freelist;
@@ -485,7 +486,7 @@ void kfree(void *addr)
     s->used_objs--;
     c->total_objs_allocated--;
 
-    release_lock(&s->this_cache->lock);
+    spin_unlock(&s->this_cache->lock);
 }
 
 void *krealloc(void *addr, size_t size)
@@ -510,10 +511,10 @@ void *kcalloc(size_t entries, size_t size)
 k_spinlock_t templock;
 void slab_dbg_print(void)
 {
-    acquire_lock(&templock);
+    spin_lock(&templock);
     for (int i = 0; i < KMALLOC_ALLOC_SIZES; i++) {
         struct slab_cache *c = &kmalloc_generic_caches[i];
-        acquire_lock(&c->lock);
+        spin_lock(&c->lock);
 
         kprintf("%s, size=%d <obj_per_slab=%lu> <pages_per_slab=%lu>\n"
                "<total_objs=%lu> <total_objs_allocated=%lu> <full=%lu/partials=%lu/empty=%lu>\n",
@@ -547,7 +548,7 @@ void slab_dbg_print(void)
             j++;
         }
 
-        release_lock(&c->lock);
+        spin_unlock(&c->lock);
     }
-    release_lock(&templock);
+    spin_unlock(&templock);
 }

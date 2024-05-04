@@ -8,6 +8,7 @@
 #include "vmm.h"
 #include "time.h"
 #include "cpu.h"
+#include "compiler.h"
 
 // kernel api
 // ============================================================================
@@ -412,7 +413,7 @@ uacpi_u64 uacpi_kernel_get_ticks(void)
 {
     // read from rtc?
     // 1000 ms ticks
-    return pit_ticks * 10000;
+    return system_ticks * 10000;
 }
 
 /*
@@ -420,9 +421,9 @@ uacpi_u64 uacpi_kernel_get_ticks(void)
  */
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    size_t end = pit_ticks + usec * 1000;
-    while (pit_ticks < end) {
-        __asm__ ("pause");
+    size_t end = system_ticks + usec * 1000;
+    while (system_ticks < end) {
+        arch_spin_hint();
     }
 }
 
@@ -432,9 +433,9 @@ void uacpi_kernel_stall(uacpi_u8 usec)
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
     // should yield here
-    size_t end = pit_ticks + msec;
-    while (pit_ticks < end) {
-        __asm__ ("pause");
+    size_t end = system_ticks + msec;
+    while (system_ticks < end) {
+        arch_spin_hint();
     }
 }
 
@@ -475,13 +476,13 @@ void uacpi_kernel_free_event(uacpi_handle)
 uacpi_bool uacpi_kernel_acquire_mutex(uacpi_handle hnd, uacpi_u16 t)
 {
     struct mutex *mutex = hnd;
-    acquire_lock_timeout(&mutex->spinlock, t);
+    spin_lock_timeout(&mutex->spinlock, t);
     return UACPI_STATUS_OK;
 }
 void uacpi_kernel_release_mutex(uacpi_handle hnd)
 {
     struct mutex *mutex = hnd;
-    release_lock(&mutex->spinlock);
+    spin_unlock(&mutex->spinlock);
 }
 
 /*
@@ -525,7 +526,7 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* req)
 {
     if (req->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
         kpanic(0, NULL, "your firmware wants you dead :(");
-        __builtin_unreachable();
+        unreachable();
     }
     return true;
 }
@@ -593,13 +594,13 @@ uacpi_cpu_flags uacpi_kernel_spinlock_lock(uacpi_handle hnd)
 {
     int_status_t s = ints_fetch_disable();
     k_spinlock_t *lock = hnd;
-    acquire_lock(lock);
+    spin_lock(lock);
     return (uacpi_cpu_flags)s;
 }
 void uacpi_kernel_spinlock_unlock(uacpi_handle hnd, uacpi_cpu_flags flgs)
 {
     k_spinlock_t *lock = hnd;
-    release_lock(lock);
+    spin_unlock(lock);
     ints_status_restore((int_status_t)flgs);
 }
 
