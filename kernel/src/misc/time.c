@@ -2,21 +2,169 @@
 #include "interrupt.h"
 #include "smp.h"
 #include "apic.h"
-#include "kevent.h"
 #include "kprintf.h"
+
+#define TIMER_NODE_LEFT 1
+#define TIMER_NODE_RIGHT 2
+
+#define MIN_TIMER_HEAP_SIZE 64
 
 volatile size_t system_ticks;
 volatile size_t unix_time;
 
-// this would be fun to do tickless
-void common_timer_handler(void)
+static struct ktimer_node **heap_array;
+static int heap_capacity;
+static int heap_size;
+static k_spinlock_t heap_lock;
+
+static inline void swap(int i, int j) {
+    __asm__ __volatile__ (
+        "xchgq %0, %1"
+        : "+r" (heap_array[i]), "+r" (heap_array[j])
+    );
+}
+
+static inline int get_child(int index, int dir) {
+    return (index << 1) + dir;
+}
+
+static inline int get_parent(int index) {
+    return (index - 1) >> 1;
+}
+
+static void min_heapify(int idx)
 {
-    // we keep track of system time and timespans from here
+    for (;;) {
+        int child_left = get_child(idx, TIMER_NODE_LEFT);
+        int child_right = get_child(idx, TIMER_NODE_RIGHT);
+        int right_idx = idx;
+
+        if (child_left < heap_size && heap_array[child_left]->expiration_time < heap_array[idx]->expiration_time)
+            right_idx = child_left;
+
+        if (child_right < heap_size && heap_array[child_right]->expiration_time < heap_array[right_idx]->expiration_time)
+            right_idx = child_right;
+
+        if (right_idx == idx)
+            break;
+
+        swap(idx, right_idx);
+        idx = right_idx;
+    }
+}
+
+static void timer_insert(struct ktimer_node *node)
+{
+    //spin_lock(&heap_lock); 
+    if (heap_size == heap_capacity) {
+        if (!heap_capacity)
+            heap_capacity = 3000;
+        else
+            heap_capacity <<= 1;
+        heap_array = krealloc(heap_array, heap_capacity * sizeof(struct ktimer_node *));
+    }
+
+    heap_size++;
+
+    int idx = heap_size - 1;
+    heap_array[idx] = node;
+
+    while (idx && heap_array[get_parent(idx)]->expiration_time > heap_array[idx]->expiration_time) {
+        swap(idx, get_parent(idx));
+        idx = get_parent(idx);
+    }
+    //spin_unlock(&heap_lock);
+}
+
+// ONLY call inside timer handler
+static struct ktimer_node *timer_peek(void)
+{
+    spin_lock(&heap_lock); 
+
+    if (!heap_size) {
+        spin_unlock(&heap_lock); 
+        return NULL;
+    }
+
+    struct ktimer_node *ret = heap_array[0];
+
+    spin_unlock(&heap_lock);
+    return ret;
+}
+
+// ONLY call inside timer handler
+static struct ktimer_node *timer_pop(void)
+{
+    spin_lock(&heap_lock);
+
+    if (!heap_size) {
+        spin_unlock(&heap_lock);
+        kpanic(0, NULL, "We should've peeked before popping anyways\n");
+        return NULL;
+    }
+
+    if (heap_size == 1) {
+        heap_size--;
+        spin_unlock(&heap_lock);
+        return heap_array[0];
+    }
+
+    struct ktimer_node *root = heap_array[0];
+    heap_array[0] = heap_array[heap_size - 1];
+
+    heap_size--;
+
+    if (heap_size > MIN_TIMER_HEAP_SIZE && heap_capacity > (heap_size << 2)) {
+        heap_capacity >>= 1;
+        heap_array = krealloc(heap_array, heap_capacity * sizeof(struct ktimer_node *));
+    }
+
+    min_heapify(0);
+    spin_unlock(&heap_lock);
+
+    return root;
+}
+
+// this would be fun to do tickless
+static void system_timer_handler(void)
+{
     __atomic_add_fetch(&system_ticks, 1, __ATOMIC_SEQ_CST);
     if (system_ticks % 1000 == 0) {
         unix_time++;
     }
+
+    // look if there are any timers ready to dispatch
+    for (;;) {
+        struct ktimer_node *timer = timer_peek();
+        if (!timer || timer->expiration_time > system_ticks)
+            break;
+
+        timer = timer_pop();
+        kevent_launch(&timer->event);
+    }
 }
+
+// pass an (unitialized!) timer and an expiration timespan.
+// kevent_t structure inside gets reset, and the calling thread
+// can call kevents_poll() on tmr->event after returning.
+// the thread will be woken up when the timer expired / the 
+// timers handler has launched the corresponding event.
+void register_system_timer(struct ktimer_node *tmr, size_t ms)
+{
+    // briefly disable interrupts since the timer lock ONLY inside insert()
+    // can be taken inside the timer interrupt handler
+    int_status_t s = ints_fetch_disable();
+
+    tmr->expiration_time = system_ticks + ms;
+    tmr->event.lock.lock = 0;
+    tmr->event.subscribers = NULL;
+    tmr->event.unprocessed = 0;
+
+    timer_insert(tmr);
+
+    ints_status_restore(s);
+}
+
 
 static void rtc_handler(cpu_ctx_t *regs)
 {
@@ -25,7 +173,7 @@ static void rtc_handler(cpu_ctx_t *regs)
 
     lapic_send_eoi_signal();
 
-    common_timer_handler();
+    system_timer_handler();
 }
 
 // rtc: ticking timer
@@ -56,24 +204,4 @@ void time_init(void)
     rtc_set_periodic(1);
     // rate 6 = 1024hz
     rtc_set_rate(6);
-}
-
-// a timer triggers an event on running out. an event can have event listeners (a thread
-// waiting for the timer to expire). upon expiration, the timer gets deleted, and the event
-// wakes all sleeping threads.
-// sleep event with timer:
-// 0.) yield into sleeping list
-// 1.) init event to reschedule its subscribers
-// 2.) subscribe to event
-// 2.) register timer handler for event
-// 3.) timer expires
-// 4.) event gets triggered and added to even worker thread queue (high prio)
-// 5.) the worker thread executes the event (wakes all subscribers)
-
-// minimum precision 1ms, for higher precision timers use something else
-// [TODO] how add event to this?
-void register_system_timer(struct ktimer *tmr, size_t ms)
-{
-    (void)ms;
-    (void)tmr;
 }

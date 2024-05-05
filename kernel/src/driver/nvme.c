@@ -460,6 +460,7 @@ void init_nvme_controller(pci_device *dev)
             PTE_BIT_DISABLE_CACHING | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
 
+
     controller->properties = (volatile struct nvme_controller_properties *)((uintptr_t)nvme_pci_bar0.base + hhdm->offset);
 
     if (!controller->properties->version) kpanic(0, NULL, "NVME_INIT: invalid controller version\n");
@@ -513,7 +514,7 @@ void init_nvme_controller(pci_device *dev)
         .set_features.opc = NVME_OPC_ADMIN_SET_FEATURES,
         .set_features.flags = NVME_CMD_FLAGS_PRPS | NVME_CMD_FLAGS_FUSE_NORMAL,
         // save, software progress marker
-        .set_features.dword_10 = (1 << 31) | 0x80,
+        .set_features.dword_10 = (1u << 31) | 0x80,
         // reset to 0, check old value for boot fail?
         .set_features.dword_11 = 0
     };

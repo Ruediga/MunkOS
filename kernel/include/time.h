@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "kevent.h"
+
 #define SYSTEM_TIMER_FREQUENCY 1000
 
 #define PIT_OSCILLATOR_FREQUENCY 1193182ul
@@ -27,12 +29,17 @@ struct tscp_ctx {
     uint32_t sig;   // OS initialized value (Linux: logical cpu id)
 };
 
-struct ktimer {
-    int unused;
+typedef uint64_t timepoint;
+
+struct ktimer_node {
+    kevent_t event;
+    timepoint expiration_time;
 };
 
 extern volatile size_t system_ticks;
 extern volatile size_t unix_time;
+
+void register_system_timer(struct ktimer_node *tmr, size_t ms);
 
 // pit
 void pit_rate_set(size_t freq);

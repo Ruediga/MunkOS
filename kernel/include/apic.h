@@ -4,7 +4,7 @@
 
 #include "cpu_id.h"
 #include "frame_alloc.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "interrupt.h"
 #include "vector.h"
 

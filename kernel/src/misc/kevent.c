@@ -121,10 +121,11 @@ static void kevent_unsubscribe(kevent_t **events, int event_count, struct task *
 // stop launching events)
 int kevents_poll(kevent_t **events, int event_count)
 {
-    int out = KEVENT_POLL_INVALID;
-    struct task *this_thread = scheduler_curr_task();
-
     int_status_t intstate = ints_fetch_disable();
+
+    int out = KEVENT_POLL_INVALID;
+
+    struct task *this_thread = scheduler_curr_task();
 
     // try to find any unprocessed event
     out = _find_unprocessed(events, event_count);
@@ -137,13 +138,13 @@ int kevents_poll(kevent_t **events, int event_count)
 
     // wait for event to launch, sleep in the meantime
     kevent_subscribe(events, event_count, this_thread);
-    scheduler_sleep(this_thread);
+    scheduler_put_task2sleep(this_thread);
     scheduler_yield();
 
     // we got woken up again
-    // maybe store this in the tctx
+    // maybe store this in the task context
     out = _find_unprocessed(events, event_count);
-    // do this so events can get removed in the meantime
+    // do this so events can get removed between consecutive calls to kevents_poll()
     kevent_unsubscribe(events, event_count, this_thread);
 
     ints_status_restore(intstate);
@@ -154,8 +155,7 @@ int kevents_poll(kevent_t **events, int event_count)
 void kevent_launch(kevent_t *event)
 {
     if (!event->subscribers)
-        kpanic(0, NULL, "Should we be able to launch events with absolutely no listeners?\n");
-
+        kpanic(0, NULL, "Should we be able to launch events with no subscribers?\n");
 
     int_status_t istate = ints_fetch_disable();
     spin_lock(&event->lock);

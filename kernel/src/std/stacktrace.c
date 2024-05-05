@@ -1,11 +1,10 @@
 #include "stacktrace.h"
 #include "kprintf.h"
 #include "vmm.h"
-#include "compiler.h"
 
 #include <stdbool.h>
 
-comp_weak struct stacktrace_symbol_table_entry stacktrace_symtable[] = {
+__attribute__((weak)) struct stacktrace_symbol_table_entry stacktrace_symtable[] = {
     {0x0, "INVALID_WEAK"}
 };
 
@@ -19,6 +18,7 @@ static bool stacktrace_analyze_frame(uintptr_t address, size_t which)
     // loop through list of (ordered) stack frames,
     // search for biggest symbols address smaller than address
     struct stacktrace_symbol_table_entry *prev = &stacktrace_symtable[0];
+    // [FIXME] no oob checking here
     for (size_t i = 0; stacktrace_symtable[i].address; i++) {
         if (address <= stacktrace_symtable[i].address) {
             uintptr_t off = address - prev->address;

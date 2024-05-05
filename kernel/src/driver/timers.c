@@ -6,8 +6,10 @@
 #include "cpu.h"
 #include "interrupt.h"
 #include "kprintf.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "cpuid.h"
+#include "uacpi/uacpi.h"
+#include "uacpi/tables.h"
 
 #define CMOS_SELECT ((uint8_t)0x70)
 #define CMOS_DATA ((uint8_t)0x71)
@@ -286,3 +288,49 @@ inline uint64_t cpu_base_freq() {
 }
 
 #pragma endregion tsc
+
+// ============================================================================
+// hpet
+// ============================================================================
+
+#pragma region hpet
+
+// [TODO]
+
+struct hpet_entry {
+	uint32_t general_capabilites_and_id;
+	struct acpi_gas address;
+	uint8_t hpet_number;
+	uint16_t min_tick;
+	uint8_t page_prot;
+} comp_packed;
+
+//static struct hpet_entry *hpet_ent;
+
+// parse acpi tables, save ptrs
+int hpet_init(void)
+{
+    /*
+    uacpi_table *hpet_table;
+    uacpi_status state = uacpi_table_find_by_signature("HPET", &hpet_table);
+    if (state != UACPI_STATUS_OK) {
+        kprintf("[WARNING]: acpi table \'HPET\' does not exist\n");
+        return 1;
+    }
+
+    if (hpet_table->hdr->length < sizeof(struct acpi_sdt_hdr) + sizeof(struct hpet_entry)) {
+        kprintf("[WARNING]: acpi HPET table has no entries\n");
+        return 1;
+    }
+
+    hpet_ent = (struct hpet_entry *)(hpet_table->virt_addr + sizeof(struct hpet_entry));
+    kprintf("setting up HPET...\n");
+
+    vmm_map_single_page(&kernel_pmc, hpet_ent->address.address + hhdm->offset,
+        hpet_ent->address.address, PTE_BIT_READ_WRITE | PTE_BIT_PRESENT | PTE_BIT_DISABLE_CACHING);
+    */
+
+    return 1;
+}
+
+#pragma endregion hpet

@@ -7,6 +7,8 @@
 #include "memory.h"
 #include "process.h"
 #include "compiler.h"
+#include "time.h"
+#include "kevent.h"
 
 // the scheduler is based on a prio based RR
 //
@@ -49,17 +51,25 @@ static inline struct task *runqueue_pop_front(struct scheduler_runqueue *rq)
         rq->head = rq->head->rr_next;
         rq->head->rr_prev = NULL;
     }
+
+    ret->rr_next = ret->rr_prev = NULL;
+
     spin_unlock(&rq->lock);
 
     return ret;
 }
 
 static inline void runqueue_insert_front(struct scheduler_runqueue *rq, struct task *task) {
+    if (!task) kpanic(0, NULL, "task == 0");
+
     spin_lock(&rq->lock);
     if (!rq->head) {
         rq->head = task;
         rq->tail = task;
+        task->rr_next = NULL;
+        task->rr_prev = NULL;
     } else {
+        task->rr_prev = NULL;
         task->rr_next = rq->head;
         rq->head->rr_prev = task;
         rq->head = task;
@@ -68,11 +78,18 @@ static inline void runqueue_insert_front(struct scheduler_runqueue *rq, struct t
 }
 
 static inline void runqueue_insert_back(struct scheduler_runqueue *rq, struct task *task) {
+    if (!task) kpanic(0, NULL, "task == 0");
+
     spin_lock(&rq->lock);
-    if (!rq->head) {
+    // for some reason, this fails if we check rq->head, and I'm convinced this is
+    // not a runqueue_X() implementation issue.
+    if (!rq->tail) {
         rq->head = task;
         rq->tail = task;
+        task->rr_next = NULL;
+        task->rr_prev = NULL;
     } else {
+        task->rr_next = NULL;
         rq->tail->rr_next = task;
         task->rr_prev = rq->tail;
         rq->tail = task;
@@ -84,10 +101,14 @@ static inline void runqueue_remove(struct scheduler_runqueue *rq, struct task *t
     if (!task) kpanic(0, NULL, "task == 0");
 
     spin_lock(&rq->lock);
-    if (task == rq->head)
+    if (task == rq->head) {
         rq->head = task->rr_next;
-    if (task == rq->tail)
+        if (!rq->head) rq->tail = NULL;
+    }
+    else if (task == rq->tail) {
         rq->tail = task->rr_prev;
+        if (!rq->tail) rq->head = NULL;
+    }
     if (task->rr_prev)
         task->rr_prev->rr_next = task->rr_next;
     if (task->rr_next)
@@ -155,7 +176,7 @@ struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, u
     } else {
         uintptr_t kernel_stack_phys = page2phys(page_alloc(psize2order(KERNEL_STACK_SIZE)));
         new_task->stacks.push_back(&new_task->stacks, kernel_stack_phys);
-        new_task->stack = (void *)(kernel_stack_phys + KERNEL_STACK_SIZE - 1);
+        new_task->stack = (void *)(kernel_stack_phys + KERNEL_STACK_SIZE);
     }
 
     // ist stacks ?
@@ -246,16 +267,18 @@ struct task *scheduler_new_idle_thread()
     return thread;
 }
 
-// only allow active threads to be put to sleep
-void scheduler_sleep(struct task *task)
+// only inserts task into sleep list!
+// if we want to also switch task if we put the current task to sleep, call yield 
+void scheduler_put_task2sleep(struct task *task)
 {
+    if (!task) kpanic(0, NULL, "task == 0");
+
     if (task->state == TASK_STATE_SLEEPING)
         kpanic(0, NULL, "Trying to put sleeping task to sleep");
 
     runqueue_remove(&prio_queue[task->prio], task);
     task->state = TASK_STATE_SLEEPING;
     runqueue_insert_back(&sleep_queue, task);
-    kprintf("put thread %lu to sleep\n", task->tid);
 }
 
 // allow active and sleeping threads to be woken
@@ -311,6 +334,7 @@ struct task *find_task_to_run(void)
     return found;
 }
 
+// this doesnt save context, it just finds a runnable task and switches to it
 void switch_to_next_task(void)
 {
     if (interrupts_enabled())
@@ -324,24 +348,6 @@ void switch_to_next_task(void)
         next_task = this_cpu->idle_thread;
 
     switch2task(next_task);
-}
-
-// give up the cpu for one round of scheduling of task->prio
-void scheduler_yield(void)
-{
-    // don't preempt
-    ints_off();
-
-    kprintf("yield: this doesnt work yet\n");
-
-    struct task *curr = scheduler_curr_task();
-
-    runqueue_insert_back(&prio_queue[curr->prio], curr);
-
-    lapic_timer_halt();
-
-    ints_on();
-    for (;;) __asm__ ("hlt");
 }
 
 // state doesnt get saved so dont take locks you don't release
@@ -379,7 +385,7 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
     // idle task
     if (curr_task == this_cpu->idle_thread) {
-        // [TODO] dynamic quantum
+        // don't save context
         switch_to_next_task();
     }
 
@@ -389,6 +395,47 @@ void scheduler_preempt(cpu_ctx_t *regs)
     }
 
     runqueue_insert_back(&prio_queue[curr_task->prio], curr_task);
+    switch_to_next_task();
+}
+
+// puts the current thread to sleep
+void scheduler_sleep_for(size_t ms)
+{
+    struct ktimer_node timer;
+    register_system_timer(&timer, ms);
+
+    struct kevent_t *events[1] = {&timer.event};
+
+    int ret = kevents_poll(events, 1);
+
+    if (ret != 0)
+        kpanic(0, NULL, "wrong events index (%d) triggered", ret);
+
+    return;
+}
+
+// give up the cpu for one round of scheduling of task->prio
+// if the current thread has been put to sleep, only reschedules
+void scheduler_yield(void)
+{
+    // don't preempt
+    ints_off();
+
+    struct task *curr = scheduler_curr_task();
+
+    // return 1 if return to jmpbuf
+    if (save_task_context(&curr->context) == 1) {
+        return;
+    }
+
+    // if sleeping, should already be in sleepqueue,
+    // and if not, it should not be enqueued at all
+    if (curr->rr_next || curr->rr_next)
+        kpanic(0, NULL, "task %lu shouldn't be enqueued\n", curr->tid);
+
+    if (curr->state != TASK_STATE_SLEEPING)
+        runqueue_insert_back(&prio_queue[curr->prio], curr);
+
     switch_to_next_task();
 }
 

@@ -64,8 +64,7 @@ Currently, I prioritize work on the kernel.
 
 ### Kernel
 
-This list will get a rework as soon as I care to do that
-
+- [x] Arch specifics
 - [x] PMM (buddy & bitmap)
 - [x] Kheap (slab)
 - [x] VMM
@@ -118,8 +117,17 @@ vfs
 
 I want MunkOS to be a primarily dependency free OS, so replacing third party libraries I use for convinience during development with my own is something I want to do at some point™.
 
-<blockquote style="border-left: 0.5em solid rgb(30,144,255);
-    padding: 1em; font-size: 1.1em;">
+# Contributing
+
+(Small) contributions are always welcome. Feel free to open a pull request.
+
+### Contributors
+
+[<img src="https://github.com/notbonzo-com.png" width="40">](https://github.com/notbonzo-com)
+
+<html>
+<blockquote>
     <p style="font-style: italic">"Just read the docs"</p>
-    <footer style="color: rgb(30,144,255); text-align: right;">- A wise man</footer>
+    <footer>- A wise man</footer>
 </blockquote>
+<html>

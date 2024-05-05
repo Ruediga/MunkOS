@@ -2,7 +2,7 @@
 #include "memory.h"
 #include "frame_alloc.h"
 #include "vmm.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "interrupt.h"
 
 VECTOR_TMPL_TYPE(acpi_ioapic_ptr)
@@ -53,7 +53,8 @@ void parse_acpi(void)
 
     // use xsdt for newer revisions
     xsdt_present = (rsdp_ptr->revision >= 2) ? true : false;
-    rsdt_ptr = xsdt_present ? (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
+    rsdt_ptr = xsdt_present ?
+        (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->xsdt_address + hhdm->offset)
         : (struct acpi_rsdt *)((uintptr_t)rsdp_ptr->rsdt_address + hhdm->offset);
     if (rsdt_ptr == NULL) {
         kpanic(0, NULL, "ACPI is not supported\n");
@@ -65,8 +66,19 @@ void parse_acpi(void)
     size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
     for (size_t i = 0; i < entry_count; i++) {
         struct acpi_sdt_header *head = NULL;
-        head = (struct acpi_sdt_header *)(xsdt_present ? (((uint64_t *)(rsdt_ptr->ptr))[i] + hhdm->offset)
-            : ((((uint32_t *)(rsdt_ptr->ptr))[i]) + hhdm->offset));
+
+        if (xsdt_present) {
+            uint32_t *xsdt_table = (uint32_t *)((uintptr_t)rsdt_ptr + sizeof(struct acpi_sdt_header));
+            // this may be unnecessary, but since the old alignment is 32 bits,
+            // and the new xsdt is 64 bits, this results in an unaligned read otherwise.
+            size_t head_lo = xsdt_table[i * 2];
+            size_t head_hi = xsdt_table[i * 2 + 1];
+            head =  (struct acpi_sdt_header *)(((head_hi << 32) | head_lo) + hhdm->offset);
+        } else {    // rsdt
+            uint32_t *rsdt_table = (uint32_t *)((uintptr_t)rsdt_ptr + sizeof(struct acpi_sdt_header));
+            head = (struct acpi_sdt_header *)(rsdt_table[i] + hhdm->offset);
+        }
+
         vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
             ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
     }
@@ -92,9 +104,19 @@ void *get_sdt(const char signature[static 4])
     size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
 
     for (size_t i = 0; i < entry_count; i++) {
-        struct acpi_sdt_header *head = (xsdt_present ?
-            (struct acpi_sdt_header *)(((uint64_t *)rsdt_ptr->ptr)[i] + hhdm->offset)
-            : (struct acpi_sdt_header *)(((uint32_t *)rsdt_ptr->ptr)[i] + hhdm->offset));
+        struct acpi_sdt_header *head;
+
+        if (xsdt_present) {
+            uint32_t *xsdt_table = (uint32_t *)((uintptr_t)rsdt_ptr + sizeof(struct acpi_sdt_header));
+            // this may be unnecessary, but since the old alignment is 32 bits,
+            // and the new xsdt is 64 bits, this results in an unaligned read otherwise.
+            size_t head_lo = xsdt_table[i * 2];
+            size_t head_hi = xsdt_table[i * 2 + 1];
+            head = (struct acpi_sdt_header *)(((head_hi << 32) | head_lo) + hhdm->offset);
+        } else {    // rsdt
+            uint32_t *rsdt_table = (uint32_t *)((uintptr_t)rsdt_ptr + sizeof(struct acpi_sdt_header));
+            head = (struct acpi_sdt_header *)(rsdt_table[i] + hhdm->offset);
+        }
 
         if (!memcmp(head->signature, signature, 4)) {
             kprintf("  - acpi: %4s found at (pa) 0x%p of length %-u\n",

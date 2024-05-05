@@ -27,8 +27,9 @@ struct task *scheduler_new_idle_thread();
 
 void kernel_idle(void);
 void scheduler_kernel_thread_exit(void);
+void scheduler_sleep_for(size_t ms);
 
-void scheduler_sleep(struct task *thread);
+void scheduler_put_task2sleep(struct task *thread);
 void scheduler_wake(struct task *task);
 void scheduler_yield(void);
 

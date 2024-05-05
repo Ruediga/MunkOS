@@ -1,6 +1,6 @@
 #include "pci.h"
 #include "io.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "interrupt.h"
 #include "kprintf.h"
 #include "frame_alloc.h"

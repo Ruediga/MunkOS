@@ -1,14 +1,4 @@
-# implement some config script thingy, e.g.:
-# ADD_DEP { MunkOS }
-# CLONE_CMD { "git clone https://github.com/Ruediga/MunkOS" }
-# HEADERS { "kernel/include" }
-# SOURCES { "kernel/src" }
-# this could go ahead and clone the repo, and then copy all .c files
-# inside SOURCES into deps/src/MunkOS and all .h files into
-# deps/include/MunkOS, and then remove the cloned from files
-# also add all the new included paths to gcc (-I)
-# another idea would be to have a seperate Makefile per dependency
-# since most projects rely on cmake (with ninja backend) or meson or similar
+# lets just use cmake
 
 .PHONY: all
 

@@ -12,7 +12,7 @@
 #include "frame_alloc.h"
 #include "vmm.h"
 #include "kheap.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "apic.h"
 #include "cpu_id.h"
 #include "smp.h"
@@ -43,7 +43,7 @@ static unsigned long pseudo_rand(unsigned long *seed) {
 // by @NotBonzo
 static int stress_test(void) {
     void *ptr = NULL;
-    unsigned long sizes[20], i, j, test_cycles = 10000;
+    unsigned long sizes[20], i, j, test_cycles = 2000;
     int ret = 0;
 
     unsigned long seed = 123456789;
@@ -140,7 +140,21 @@ void init_acpi(void)
     kprintf("%s uACPI initialized\n\r", kernel_okay_string);
  
     // at this point we can do driver stuff and fully use acpi
-    // thank @CopyObject abuser
+    // thanks @CopyObject abuser
+}
+
+void t2(void *arg)
+{
+    ints_on();
+
+    kprintf("i am t2: %p\n", arg);
+
+    for (int i = 0; i < 1000; i++) {
+        scheduler_sleep_for(1000 - system_ticks % 1000);
+        kprintf("unix timestamp: %lu\n", unix_time);
+    }
+
+    scheduler_kernel_thread_exit();
 }
 
 void kernel_main(void *args)
@@ -148,6 +162,13 @@ void kernel_main(void *args)
     ints_on();
 
     kprintf("i am t0 (main thread), args=%lu\n", args);
+
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
 
     stress_test();
 
@@ -162,44 +183,10 @@ void kernel_main(void *args)
         "day %hhu, hour %hhu, minute %hhu, second %hhu\n",
         c.century, c.year, c.month, c.day, c.hour, c.minute, c.second);
 
-    for (int i = 0; i < 10; i++) {
-        size_t end = system_ticks + 1000;
-        while (system_ticks < end) {
-            arch_spin_hint();
-        }
+    for (int i = 0; i < 1000; i++) {
+        scheduler_sleep_for(1000 - system_ticks % 1000);
         kprintf("unix timestamp: %lu\n", unix_time);
     }
-
-    scheduler_kernel_thread_exit();
-}cd .git/objects
-ls -al
-sudo chown -R yourname:yourgroup *
-
-You can tell yourname and yourgroup by:
-
-# for yourname
-whoami
-# for yourgroup
-id -g -n <yourname>
-
-
-void t2(void)
-{
-    kprintf("i am t2\n");
-
-    scheduler_kernel_thread_exit();
-}
-
-void t3(void)
-{
-    kprintf("i am t3\n");
-
-    scheduler_kernel_thread_exit();
-}
-
-void t1(void)
-{
-    kprintf("i am t1\n");
 
     scheduler_kernel_thread_exit();
 }

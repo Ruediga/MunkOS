@@ -58,7 +58,7 @@ static uint64_t *get_below_pml(uint64_t *pml_pointer, uint64_t index, bool force
         return NULL;
     }
 
-    void *below_pml = page_alloc_temp(psize2order(1 * PAGE_SIZE));
+    void *below_pml = (void *)page2phys(page_alloc(psize2order(1 * PAGE_SIZE)));
     if (below_pml == NULL) {
         kpanic(0, NULL, "Allocating pages for vmm tables failed\n\r");
     }
@@ -199,8 +199,8 @@ static void init_kpm(void)
     tlb_flush();
 }
 
-// [TODO] free unused pages holding page tables                 |
-// and write a proper range based allocator because wtf is this v
+// [TODO] free unused pages holding page tables
+// and write a proper range based allocator because wtf is this
 // maps a page size aligned VA to a page size aligned PA
 void vmm_map_single_page(page_map_ctx *pmc, uintptr_t va, uintptr_t pa, uint64_t flags)
 {

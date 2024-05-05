@@ -66,7 +66,7 @@ struct task {
 
     // context switch related stuff
     // ============================
-    vector_uintptr_t_t stacks;   // all phys stack buffers related to this task (ists, kernel, common)
+    vector_uintptr_t_t stacks;  // all phys stack buffers related to this task (ists, kernel, common)
     void *kernel_stack;         // user mode tasks: rsp0, kernel tasks: unused
     void *stack;                // the tasks thread - also a kernel threads common int thread
 

@@ -1,6 +1,6 @@
 #include "cpu.h"
 #include "kprintf.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "interrupt.h"
 #include "io.h"
 #include "time.h"
@@ -12,7 +12,7 @@ void spin_lock(k_spinlock_t *lock) {
     size_t c = 0;
     while (!__sync_bool_compare_and_swap(&lock->lock, 0, 1)) {
         arch_spin_hint();
-        if (++c > 1000000000ul) kpanic(0, NULL, "DEADLOCK\n");
+        if (++c > 10000000ul) kpanic(0, NULL, "DEADLOCK\n");
     }
 }
 

@@ -5,7 +5,7 @@
 #include "vmm.h"
 #include "cpu.h"
 #include "apic.h"
-#include "acpi.h"
+#include "_acpi.h"
 #include "io.h"
 #include "smp.h"
 #include "time.h"

@@ -20,6 +20,7 @@ override CPPFLAGS := \
 
 # c flags to simulate a properly configured cross compiler
 override CFLAGS += \
+    -fsanitize=undefined \
     -Wall \
     -Werror \
     -Wextra \
