@@ -21,7 +21,7 @@ static void vfs_fs_list_remove()
 // subnode of owner, flags (), vnode operations, type, specific data pointer for this specific filesystem (needs to be free()able)
 static struct vfs_vnode *vfs_vnode_alloc(struct vfs_fs *owner, size_t flags, struct vfs_vnode_ops *ops, enum vfs_vnode_type type, gen_dptr data)
 {
-    struct vfs_vnode *node = kmalloc(sizeof(struct vfs_vnode));
+    struct vfs_vnode *node = kcalloc(1, sizeof(struct vfs_vnode));
     node->v_flag = flags;
     node->v_count = 0;
     node->v_vfs_mounted_here = NULL;
@@ -44,7 +44,7 @@ static void vfs_vnode_free(struct vfs_vnode **node_ptr)
 // operations, flags, block size, fs specific data ptr
 static struct vfs_fs *vfs_fs_alloc(struct vfs_fs_ops *ops, size_t flags, size_t bsize, gen_dptr data)
 {
-    struct vfs_fs *fs = kmalloc(sizeof(struct vfs_fs));
+    struct vfs_fs *fs = kcalloc(1, sizeof(struct vfs_fs));
     fs->vfs_next = NULL;
     fs->vfs_op = ops;
     fs->vfs_vnodecovered = NULL;

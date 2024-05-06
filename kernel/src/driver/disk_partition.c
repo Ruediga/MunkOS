@@ -44,7 +44,7 @@ int partition_dev_write(struct device *dev, void *buf, size_t off, size_t count)
 // for NVME drives pass nvmeXnY to get nvmeXnYp1 - ... and so on
 void partition_disk_device(struct device *vdisk)
 {
-    struct gpt_partition_table_header *lba1 = kmalloc(vdisk->bsize);
+    struct gpt_partition_table_header *lba1 = kcalloc(1, vdisk->bsize);
     // read lba1 to check for gpt
     uint64_t pos = 1 * vdisk->bsize;
     vdisk->read(vdisk, lba1, pos, vdisk->bsize);
@@ -52,7 +52,7 @@ void partition_disk_device(struct device *vdisk)
     if (!memcmp(lba1->signature, "EFI PART", 8)) {
         // GPT
         pos = lba1->guid_pea_start_lba * vdisk->bsize;
-        struct gpt_partition_table_entry *entry = kmalloc(lba1->pea_entry_size);
+        struct gpt_partition_table_entry *entry = kcalloc(1, lba1->pea_entry_size);
 
         for (size_t i = 0; i < lba1->partentries_count; i++, pos += lba1->pea_entry_size) {
             vdisk->read(vdisk, entry, pos, lba1->pea_entry_size);
@@ -61,7 +61,7 @@ void partition_disk_device(struct device *vdisk)
                 continue;
             }
 
-            struct partition_device *part = kmalloc(sizeof(struct partition_device));
+            struct partition_device *part = kcalloc(1, sizeof(struct partition_device));
             // gendptr points to underlying device (driver)
             device_init((struct device *)part, vdisk->bsize, entry->lba_end - entry->lba_start + 1,
                 0, DEV_BLOCK, (gen_dptr)vdisk, "%sp%lu", vdisk->name, i + 1);
@@ -90,7 +90,7 @@ void partition_disk_device(struct device *vdisk)
                 continue;
             }
 
-            struct partition_device *part = kmalloc(sizeof(struct partition_device));
+            struct partition_device *part = kcalloc(1, sizeof(struct partition_device));
             // gendptr points to underlying device (driver)
             device_init((struct device *)part, vdisk->bsize, mbr->entries[i].nsectors,
                 0, DEV_BLOCK, (gen_dptr)vdisk, "%sp%lu", vdisk->name, i + 1);

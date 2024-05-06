@@ -1,13 +1,12 @@
 #include "serial.h"
 #include "io.h"
 #include "cpu.h"
+#include "compiler.h"
 
 #include <stdint.h>
 #include <stddef.h>
 
-// https://wiki.osdev.org/Serial_Ports
-
-static bool serial_init_port(enum serial_port port)
+comp_no_asan static bool serial_init_port(enum serial_port port)
 {
     // port + 7: scratch register (test of the regis)
     outb(port + 7, 123);
@@ -35,11 +34,11 @@ static bool serial_init_port(enum serial_port port)
 }
 
 // return success
-bool init_serial(void) {
+comp_no_asan bool init_serial(void) {
     return !(!serial_init_port(port_tty1) | !serial_init_port(port_tty2));
 }
 
-void serial_out_char(enum serial_port port, char c)
+comp_no_asan void serial_out_char(enum serial_port port, char c)
 {
     // not ready to receive
     while (!(inb(port + 5) & (1 << 5))) arch_spin_hint();

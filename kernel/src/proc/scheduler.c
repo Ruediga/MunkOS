@@ -10,12 +10,13 @@
 #include "time.h"
 #include "kevent.h"
 
-// the scheduler is based on a prio based RR
+// the scheduler is based on a prio RR
 //
-// todo:
+// [TODO]:
 //  - cpu pinning
 //  - per cpu runqeue
 //  - load balancing
+//  - CLEANUP
 
 VECTOR_TMPL_TYPE(uintptr_t)
 
@@ -28,6 +29,10 @@ static uint64_t scheduler_task_id_counter = 0;
 
 static struct scheduler_runqueue prio_queue[TASK_PRIORITY_MAX_PRIORITIES];
 static struct scheduler_runqueue sleep_queue;
+static struct scheduler_runqueue reap_queue;
+static kevent_t reap_event;
+
+void kernel_reaper(void *arg);
 
 static void scheduler_preempt(cpu_ctx_t *regs);
 
@@ -127,6 +132,8 @@ void init_scheduling(void)
 {
     interrupts_register_vector(INT_VEC_SCHEDULER, (uintptr_t)scheduler_preempt);
     kernel_task = scheduler_spawn_task(NULL, &kernel_pmc, SPAWN_TASK_NO_KERNEL_STACK, 64 * KiB);
+
+    scheduler_new_kernel_thread(kernel_reaper, NULL, TASK_PRIORITY_CRITICAL);
 }
 
 // caller responsibilites: upon exiting, task is ...
@@ -167,9 +174,11 @@ struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, u
 
     VECTOR_REINIT(new_task->stacks, uintptr_t);
 
-    uintptr_t stack_phys = page2phys(page_alloc(psize2order(stacksize)));
+    // make sure that the threads task is the first to be pushed
+    new_task->stack_size = stacksize;
+    uintptr_t stack_phys = page2phys(page_alloc(psize2order(new_task->stack_size)));
     new_task->stacks.push_back(&new_task->stacks, stack_phys);
-    new_task->stack = (void *)(stack_phys + stacksize - 1);
+    new_task->stack = (void *)(stack_phys + new_task->stack_size - 1);
 
     if (flags & SPAWN_TASK_NO_KERNEL_STACK) {
         new_task->kernel_stack = NULL;
@@ -195,10 +204,52 @@ struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, u
 
     new_task->pmc = pmc;
 
-    new_task->krnl_gs_bs = new_task;
-
     spin_unlock(&scheduler_big_lock);
     return new_task;
+}
+
+// cleanup a task from the reap queue. invoked from the schedulers
+// task killer worker thread
+void scheduler_cleanup_task(struct task *task)
+{
+    if (task->state != TASK_STATE_KILLED)
+        kpanic(0, NULL, "trying to cleanup non-dead task");
+
+    if (task->rr_next || task->rr_prev)
+        // only call cleanup_task() when we've already been popped from the reap queue
+        kpanic(0, NULL, "we shouldn't be enlinked here");
+
+    // unlink from sibling list (maybe disable ints here?)
+    spin_lock(&scheduler_big_lock);
+
+    // kill all children
+    struct task *child = task->first_child;
+    while (child) {
+        child->state = TASK_STATE_KILLED;
+        child = child->sibling_next;
+    }
+
+    // we are the first child
+    if (task->parent->first_child == task)
+        task->parent->first_child = task->sibling_next;
+
+    if (task->sibling_next)
+        task->sibling_next->sibling_prev = task->sibling_prev;
+    if (task->sibling_prev)
+        task->sibling_prev->sibling_next = task->sibling_next;
+
+    spin_unlock(&scheduler_big_lock);
+
+    // threads task is the first to be pushed
+    page_free(phys2page(task->stacks.data[0]), psize2order(task->stack_size));
+
+    // clean up all IST and kernel stacks
+    for (size_t i = 1; i < task->stacks.size; i++) {
+        page_free(phys2page(task->stacks.data[i]), psize2order(KERNEL_STACK_SIZE));
+    }
+
+    // [TODO] clean up page map context
+    // cleanup(task->pmc);
 }
 
 struct task *scheduler_new_kernel_thread(void (*entry)(void *args), void *args, enum task_priority prio)
@@ -233,7 +284,7 @@ struct task *scheduler_new_kernel_thread(void (*entry)(void *args), void *args, 
     spin_unlock(&scheduler_big_lock);
 
     // enqueue
-    scheduler_wake(thread);
+    scheduler_attempt_wake(thread);
 
     return thread;
 }
@@ -281,17 +332,15 @@ void scheduler_put_task2sleep(struct task *task)
     runqueue_insert_back(&sleep_queue, task);
 }
 
-// allow active and sleeping threads to be woken
-void scheduler_wake(struct task *task)
+// this does NOT fail when trying to wake ready or running threads!
+void scheduler_attempt_wake(struct task *task)
 {
-    if (task->state != TASK_STATE_SLEEPING)
-        kpanic(0, NULL, "Trying to wake non-sleeping task");
-
-    runqueue_remove(&sleep_queue, task);
-    task->state = TASK_STATE_READY;
-    // put at front so the task spins up as fast as possible
-    runqueue_insert_front(&prio_queue[task->prio], task);
-    kprintf("waking thread %lu\n", task->tid);
+    if (task->state == TASK_STATE_SLEEPING) {
+        runqueue_remove(&sleep_queue, task);
+        task->state = TASK_STATE_READY;
+        // put at front so the task spins up as fast as possible
+        runqueue_insert_front(&prio_queue[task->prio], task);
+    }
 }
 
 // switch currently executed task to target. does not take any queuing or related responsibilites.
@@ -350,14 +399,6 @@ void switch_to_next_task(void)
     switch2task(next_task);
 }
 
-// state doesnt get saved so dont take locks you don't release
-void kernel_idle(void)
-{
-    ints_on();
-    for (;;) __asm__ ("hlt");
-    unreachable();
-}
-
 void scheduler_preempt(cpu_ctx_t *regs)
 {
     (void)regs;
@@ -373,6 +414,9 @@ void scheduler_preempt(cpu_ctx_t *regs)
 
     if (curr_task->state == TASK_STATE_KILLED) {
         kprintf("task %lu is dead\n", curr_task->tid);
+
+        runqueue_insert_back(&reap_queue, curr_task);
+        kevent_launch(&reap_event);
 
         // don't save context or enqueue anymore
         spin_unlock(&scheduler_big_lock);
@@ -428,30 +472,60 @@ void scheduler_yield(void)
         return;
     }
 
-    // if sleeping, should already be in sleepqueue,
-    // and if not, it should not be enqueued at all
-    if (curr->rr_next || curr->rr_next)
-        kpanic(0, NULL, "task %lu shouldn't be enqueued\n", curr->tid);
-
-    if (curr->state != TASK_STATE_SLEEPING)
+    if (curr->state != TASK_STATE_SLEEPING) {
+        // if sleeping, should already be in sleepqueue,
+        // and if not, it should not be enqueued at all
+        if (curr->rr_next || curr->rr_prev)
+            kpanic(0, NULL, "task %lu shouldn't be enqueued state: %d\n", curr->tid, curr->state);
         runqueue_insert_back(&prio_queue[curr->prio], curr);
+    }
 
     switch_to_next_task();
 }
 
 void comp_noreturn scheduler_kernel_thread_exit(void)
 {
-    // fix this bullshit
-
     ints_off(); // may be called while ints are on
 
     struct task *curr_task = scheduler_curr_task();
 
-    curr_task->state = TASK_STATE_KILLED;
+    // we shouldn't have to unlink this task from anywhere since we
+    // shouldn't be in any runqueue while we're running.
 
-    runqueue_remove(&prio_queue[curr_task->prio], curr_task);
+    curr_task->state = TASK_STATE_KILLED;
+    runqueue_insert_back(&reap_queue, curr_task);
+    kevent_launch(&reap_event);
 
     switch_to_next_task();
+
+    unreachable();
+}
+
+// state doesnt get saved so dont take locks you don't release
+void kernel_idle(void)
+{
+    ints_on();
+    for (;;) __asm__ ("hlt");
+    unreachable();
+}
+
+// this thread looks for processes in the reap queue, and cleans them up accordingly
+void kernel_reaper(void *arg)
+{
+    (void)arg;
+
+    ints_on();
+
+    kevent_t *events[] = {&reap_event};
+
+    for (;;) {
+        int ret = kevents_poll(events, 1);
+        if (ret != 0)
+            kpanic(0, NULL, "something went wrong");
+
+        struct task *task_to_kill = runqueue_pop_front(&reap_queue);
+        scheduler_cleanup_task(task_to_kill);
+    }
 
     unreachable();
 }

@@ -4,7 +4,7 @@
 void queue_enqueue(queue_t *queue, void *value)
 {
     if (!queue->root) {
-        queue->root = (queue_node_t *)kmalloc(sizeof(queue_node_t));
+        queue->root = (queue_node_t *)kcalloc(1, sizeof(queue_node_t));
         queue->root->next = NULL;
         queue->root->value = value;
         queue->head = queue->root;
@@ -12,7 +12,7 @@ void queue_enqueue(queue_t *queue, void *value)
         return;
     }
 
-    queue->head->next = (queue_node_t *)kmalloc(sizeof(queue_node_t));
+    queue->head->next = (queue_node_t *)kcalloc(1, sizeof(queue_node_t));
     queue->head = queue->head->next;
     queue->head->next = NULL;
     queue->head->value = value;

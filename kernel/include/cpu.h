@@ -14,11 +14,6 @@ typedef uint8_t int_status_t;
 
 struct task;
 
-typedef struct {
-    size_t lock;
-    size_t dumb_idea;
-} k_spinlock_t;
-
 struct task_state_segment {
     uint32_t reserved_0;
     uint64_t rsp0;  // privilege level stacks
@@ -131,7 +126,3 @@ static inline void ints_on(void) {
 
 void nmi_enable(void);
 void nmi_disable(void);
-
-void spin_lock(k_spinlock_t *lock);
-void spin_unlock(k_spinlock_t *lock);
-bool spin_lock_timeout(k_spinlock_t *lock, size_t millis);

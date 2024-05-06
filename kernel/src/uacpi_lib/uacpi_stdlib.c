@@ -246,7 +246,7 @@ uacpi_status uacpi_kernel_io_map(
 {
 		if (base > 0xffff)
 			return UACPI_STATUS_INVALID_ARGUMENT;
-		struct io_range* rng = kmalloc(sizeof(struct io_range));
+		struct io_range* rng = kcalloc(1, sizeof(struct io_range));
         rng->base = base;
         rng->len = len;
 		*out_handle = (uacpi_handle)rng;
@@ -312,7 +312,7 @@ void uacpi_kernel_unmap(void *addr, uacpi_size len)
  */
 void *uacpi_kernel_alloc(uacpi_size size)
 {
-    return kmalloc(size);
+    return kcalloc(1, size);
 }
 
 /*
@@ -548,7 +548,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(
     (void)out_irq_handle;
     // [TODO] mplement some proper way of installing int handlers that you can
     // pass data to since the current implementation is shit
-    kprintf("WARNING: uACPI stblib: no interrupts getting registered since I didnt implement this\n");
+    kprintf("WARNING: uACPI stdlib: no interrupts getting registered since I didnt implement this\n");
     return UACPI_STATUS_OK;
 }
 

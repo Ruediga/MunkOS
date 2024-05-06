@@ -18,6 +18,7 @@
 #include "memory.h"
 #include "macros.h"
 #include "interrupt.h"
+#include "locking.h"
 
 struct page *pages;
 size_t pages_count;
@@ -397,7 +398,7 @@ void buddy_print(void) {
     }
 }
 
-void buddy_init()
+comp_no_asan void buddy_init()
 {
     // find space for bitmap
     for (size_t order = 0; order <= BUDDY_HIGH_ORDER; order++) {

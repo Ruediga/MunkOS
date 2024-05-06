@@ -42,7 +42,7 @@ struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
-size_t early_mem_init()
+comp_no_asan size_t early_mem_init()
 {
     if (!memmap_request.response || !hhdm_request.response) {
         kpanic(0, NULL, "memmap or hhdm request failed\n");
@@ -96,7 +96,7 @@ size_t early_mem_init()
 
 // very early first fit algorithm, memory returned is hhdm-ed
 // mustn't fail
-void *early_mem_alloc(size_t size)
+comp_no_asan void *early_mem_alloc(size_t size)
 {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_alloc() with early_mem_uninitialized=0\n");
@@ -131,7 +131,7 @@ void *early_mem_alloc(size_t size)
 }
 
 // cleans up data structures, fixes memmap
-size_t early_mem_exit(void)
+comp_no_asan size_t early_mem_exit(void)
 {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_exit() with early_mem_uninitialized=0\n");
@@ -158,7 +158,7 @@ size_t early_mem_exit(void)
     return early_mem_bytes_allocated;
 }
 
-void early_mem_dbg_print(void)
+comp_no_asan void early_mem_dbg_print(void)
 {
     kprintf("0x%lx bytes ( >= %lu pages) allocated until now\n",
         early_mem_bytes_allocated, early_mem_bytes_allocated / PAGE_SIZE);
@@ -169,7 +169,7 @@ void early_mem_dbg_print(void)
 }
 
 // return pages usable and bytes free, can be called even after early_mem_exit()
-void early_mem_statistics(size_t *usable, size_t *free) {
+comp_no_asan void early_mem_statistics(size_t *usable, size_t *free) {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_statistics() with early_mem_uninitialized=0\n");
     }

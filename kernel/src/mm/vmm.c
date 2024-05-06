@@ -1,12 +1,15 @@
+#include <stdbool.h>
+#include <cpuid.h>
+
 #include "vmm.h"
 #include "frame_alloc.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "cpu.h"
 #include "apic.h"
+#include "locking.h"
 
-#include <stdbool.h>
-#include <cpuid.h>
+// THIS NEEDS A REWORK
 
 page_map_ctx kernel_pmc = { 0x0 };
 static uint64_t phys_addr_width = 0;

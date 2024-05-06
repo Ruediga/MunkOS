@@ -101,7 +101,7 @@ static inline void pci_dev_calc_phys(pci_device *dev)
 
 void pci_check_device(uint8_t bus, uint8_t dev_slot, uint8_t function)
 {
-    pci_device *device = kmalloc(sizeof(pci_device));
+    pci_device *device = kcalloc(1, sizeof(pci_device));
 
     device->bus = bus;
     device->dev_slot = dev_slot;

@@ -5,6 +5,7 @@
 #include "vmm.h"
 #include "process.h"
 #include "vector.h"
+#include "locking.h"
 
 #define SPAWN_TASK_THREAD_GROUP (1 << 0)
 #define SPAWN_TASK_NO_KERNEL_STACK (1 << 1)
@@ -30,7 +31,7 @@ void scheduler_kernel_thread_exit(void);
 void scheduler_sleep_for(size_t ms);
 
 void scheduler_put_task2sleep(struct task *thread);
-void scheduler_wake(struct task *task);
+void scheduler_attempt_wake(struct task *task);
 void scheduler_yield(void);
 
 void switch_to_next_task(void);

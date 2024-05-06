@@ -1,9 +1,10 @@
 #include "memory.h"
+#include "compiler.h"
 
 // these are completeky unoptimized, maybe its a nice idea to include
 // hand optimized per arch versions (non sse)?
 
-void *memcpy(void *dest, const void *src, size_t n) {
+comp_no_asan void *memcpy(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
 
@@ -14,7 +15,7 @@ void *memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-void *memset(void *s, int c, size_t n) {
+comp_no_asan void *memset(void *s, int c, size_t n) {
     uint8_t *p = (uint8_t *)s;
 
     for (size_t i = 0; i < n; i++) {
@@ -24,7 +25,7 @@ void *memset(void *s, int c, size_t n) {
     return s;
 }
 
-void *memmove(void *dest, const void *src, size_t n) {
+comp_no_asan void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
 
@@ -41,7 +42,7 @@ void *memmove(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-int memcmp(const void *s1, const void *s2, size_t n) {
+comp_no_asan int memcmp(const void *s1, const void *s2, size_t n) {
     const uint8_t *p1 = (const uint8_t *)s1;
     const uint8_t *p2 = (const uint8_t *)s2;
 
@@ -54,7 +55,7 @@ int memcmp(const void *s1, const void *s2, size_t n) {
     return 0;
 }
 
-size_t strlen(const char *str)
+comp_no_asan size_t strlen(const char *str)
 {
     const char *s;
     for (s = str; *s; ++s) ;

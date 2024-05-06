@@ -55,6 +55,7 @@ struct task {
     int tid;                    // task id - globally unique
     int gid;                    // thread group id - same for tasks in a thread group
 
+    // only change the linking nodes while holding scheduler_big_lock
     struct task *tg_leader;     // thread group "leader" (first task with this tgid)
     struct task *parent;
 
@@ -68,7 +69,9 @@ struct task {
     // ============================
     vector_uintptr_t_t stacks;  // all phys stack buffers related to this task (ists, kernel, common)
     void *kernel_stack;         // user mode tasks: rsp0, kernel tasks: unused
+
     void *stack;                // the tasks thread - also a kernel threads common int thread
+    size_t stack_size;
 
     page_map_ctx *pmc;
 
@@ -76,8 +79,6 @@ struct task {
 
     // more context
     uint64_t fs_base;   // tls: save per thread
-
-    struct task *krnl_gs_bs;
 
     // statistics
     // ==========

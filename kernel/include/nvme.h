@@ -1,11 +1,12 @@
 #pragma once
 
-#include "vector.h"
-#include "device.h"
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+
+#include "vector.h"
+#include "locking.h"
+#include "device.h"
 
 // most admin and io commands
 // admin command set

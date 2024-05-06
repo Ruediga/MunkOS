@@ -8,3 +8,5 @@
 #define comp_aligned(n) __attribute__((aligned(n)))
 #define comp_noreturn __attribute__((noreturn))
 #define comp_weak __attribute__((weak))
+
+#define comp_no_asan __attribute__((no_sanitize_address))

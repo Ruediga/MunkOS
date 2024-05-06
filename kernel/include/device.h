@@ -6,6 +6,7 @@
 
 #include "vfs.h"
 #include "cpu.h"
+#include "locking.h"
 
 // should be equal to max inode name length
 #define DEVICE_NAME_LENGTH 256

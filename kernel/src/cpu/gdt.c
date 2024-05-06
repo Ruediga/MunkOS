@@ -3,6 +3,7 @@
 #include "gdt.h"
 #include "cpu.h"
 #include "kprintf.h"
+#include "locking.h"
 
 struct comp_packed {
     segment_descriptor gdts[5];

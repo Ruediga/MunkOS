@@ -55,8 +55,8 @@ static void nvme_cache_container_init(struct nvme_cache_container *container)
     }
 
     container->head = container->tail = NULL;
-    for (size_t i = 0; i < NVME_NCACHES; i++) {
-        struct nvme_cache_dll_node *new = kmalloc(sizeof(struct nvme_cache_dll_node));
+    for (size_t i = 0; i < NVME_NCACHES - 0; i++) {
+        struct nvme_cache_dll_node *new = kcalloc(1, sizeof(struct nvme_cache_dll_node));
         new->next = NULL;
         new->prev = NULL;
         new->index = i;
@@ -92,7 +92,7 @@ static size_t nvme_cache_lru_evict(struct nvme_cache_container *container)
 {
     size_t index = container->tail->index;
     if (container->cache[index].status == NVME_CACHE_EMPTY) {
-        container->cache[index].block = kmalloc(NVME_BLOCK_SIZE);
+        container->cache[index].block = kcalloc(1, NVME_BLOCK_SIZE);
         container->cache[index].status = NVME_CACHE_VALID;
     }
     return index;
@@ -167,7 +167,7 @@ static void nvme_cache_hashmap_update(struct nvme_cache_hashmap_entry *hashmap, 
         hashmap[idx].index = index;
     } else {
         struct nvme_cache_hashmap_entry *old_next = hashmap[idx].next;
-        hashmap[idx].next = kmalloc(sizeof(struct nvme_cache_hashmap_entry));
+        hashmap[idx].next = kcalloc(1, sizeof(struct nvme_cache_hashmap_entry));
         hashmap[idx].next->bid = bid;
         hashmap[idx].next->index = index; 
         hashmap[idx].next->next = old_next;
@@ -443,7 +443,7 @@ void init_nvme_controller(pci_device *dev)
     nvme_cmdset_struct_verify_size();
 #endif // MUNKOS_DEBUG_BUILD
 
-    struct nvme_controller *controller = kmalloc(sizeof(struct nvme_controller));
+    struct nvme_controller *controller = kcalloc(1, sizeof(struct nvme_controller));
     VECTOR_REINIT(controller->active_ns, nvme_ns_ctx);
 
     // interrupts enable, bus-mastering DMA, memory space access [FIXME] MMIO too?

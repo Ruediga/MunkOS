@@ -5,8 +5,9 @@
 #include "kprintf.h"
 #include "memory.h"
 #include "interrupt.h"
+#include "compiler.h"
 
-inline void cpuid(struct cpuid_ctx *ctx) {
+comp_no_asan inline void cpuid(struct cpuid_ctx *ctx) {
     __asm__ volatile (
         "cpuid"
         : "=a" (ctx->eax), "=b" (ctx->ebx), "=c" (ctx->ecx), "=d" (ctx->edx)
@@ -16,7 +17,7 @@ inline void cpuid(struct cpuid_ctx *ctx) {
 }
 
 // 13 chars (including \0)
-static void cpuid_leaf0x0(struct cpuid_data_common *data)
+comp_no_asan static void cpuid_leaf0x0(struct cpuid_data_common *data)
 {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -31,7 +32,7 @@ static void cpuid_leaf0x0(struct cpuid_data_common *data)
     *(data->cpu_vendor + 12) = '\0';
 }
 
-static void cpuid_leaf0x1(struct cpuid_data_common *data)
+comp_no_asan static void cpuid_leaf0x1(struct cpuid_data_common *data)
 {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -55,7 +56,7 @@ static void cpuid_leaf0x1(struct cpuid_data_common *data)
     data->feature_flags_edx = edx;
 }
 
-static void cpuid_leaf_0x80000002(struct cpuid_data_common *data)
+comp_no_asan static void cpuid_leaf_0x80000002(struct cpuid_data_common *data)
 {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -68,7 +69,7 @@ static void cpuid_leaf_0x80000002(struct cpuid_data_common *data)
     *((uint32_t *)(data->cpu_name_string + 12)) = edx;
 }
 
-static void cpuid_leaf_0x80000003(struct cpuid_data_common *data)
+comp_no_asan static void cpuid_leaf_0x80000003(struct cpuid_data_common *data)
 {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -81,7 +82,7 @@ static void cpuid_leaf_0x80000003(struct cpuid_data_common *data)
     *((uint32_t *)(data->cpu_name_string + 28)) = edx;
 }
 
-static void cpuid_leaf_0x80000004(struct cpuid_data_common *data)
+comp_no_asan static void cpuid_leaf_0x80000004(struct cpuid_data_common *data)
 {
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
 
@@ -96,7 +97,7 @@ static void cpuid_leaf_0x80000004(struct cpuid_data_common *data)
     *(data->cpu_name_string + 48) = '\0';
 }
 
-void cpuid_common(struct cpuid_data_common *data)
+comp_no_asan void cpuid_common(struct cpuid_data_common *data)
 {
     cpuid_leaf0x0(data);
     cpuid_leaf0x1(data);
@@ -110,7 +111,7 @@ void cpuid_common(struct cpuid_data_common *data)
     }
 }
 
-void cpuid_compatibility_check(struct cpuid_data_common *data)
+comp_no_asan void cpuid_compatibility_check(struct cpuid_data_common *data)
 {
     uint8_t okay = 1;
 

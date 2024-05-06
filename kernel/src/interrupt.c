@@ -59,17 +59,17 @@ static const char * cpu_exception_strings[32] = {
     "RESERVED VECTOR"
 };
 
-void default_interrupt_handler(cpu_ctx_t *regs)
+comp_no_asan void default_interrupt_handler(cpu_ctx_t *regs)
 {
     kpanic(0, regs, "An unhandled interrupt occured\n");
 }
 
-void cpu_exception_handler(cpu_ctx_t *regs)
+comp_no_asan void cpu_exception_handler(cpu_ctx_t *regs)
 {
     kpanic(0, regs, "cpu_exception_handler() called\n");
 }
 
-void print_register_context(cpu_ctx_t *regs)
+comp_no_asan void print_register_context(cpu_ctx_t *regs)
 {
     kprintf("\n[IV %lu] -> %s", regs->vector, regs->vector < 32 ? 
         cpu_exception_strings[regs->vector] : "?");
@@ -98,7 +98,7 @@ void print_register_context(cpu_ctx_t *regs)
 }
 
 // kernel panic
-void comp_noreturn kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...)
+comp_no_asan void comp_noreturn kpanic(uint8_t flags, cpu_ctx_t *regs, const char *format, ...)
 {
     ints_off();    // if manually called interrupts may be on
 
@@ -140,7 +140,7 @@ quiet:
     unreachable();
 }
 
-void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)
+comp_no_asan void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)
 {
     idt_descriptor *descriptor = &idt[vector];
 
@@ -153,7 +153,7 @@ void idt_set_descriptor(uint8_t vector, uintptr_t isr, uint8_t flags)
     descriptor->reserved = 0;
 }
 
-void init_idt(void)
+comp_no_asan void init_idt(void)
 {
     for (size_t vector = 0; vector < 32; vector++) {
         // Present [7], kernel only [6:5], 0 [4], gate type [3:0]
@@ -168,7 +168,7 @@ void init_idt(void)
     load_idt();
 }
 
-void interrupts_register_vector(size_t vector, uintptr_t handler)
+comp_no_asan void interrupts_register_vector(size_t vector, uintptr_t handler)
 {
     spin_lock(&int_register_vec_lock);
     if (handlers[vector] != (uintptr_t)default_interrupt_handler || !handler) {
@@ -179,7 +179,7 @@ void interrupts_register_vector(size_t vector, uintptr_t handler)
     spin_unlock(&int_register_vec_lock);
 }
 
-void interrupts_erase_vector(size_t vector)
+comp_no_asan void interrupts_erase_vector(size_t vector)
 {
     spin_lock(&int_erase_vec_lock);
     if (handlers[vector] == (uintptr_t)default_interrupt_handler || vector < 32) {
@@ -191,7 +191,7 @@ void interrupts_erase_vector(size_t vector)
     spin_unlock(&int_erase_vec_lock);
 }
 
-inline void load_idt(void)
+comp_no_asan inline void load_idt(void)
 {
     idtr.offset = (uintptr_t)idt;
     // max descriptors - 1

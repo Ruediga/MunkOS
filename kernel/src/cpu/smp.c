@@ -74,7 +74,7 @@ void boot_other_cores(void)
     smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;
 
-    global_cpus = kmalloc(sizeof(cpu_local_t) * smp_cpu_count);
+    global_cpus = kcalloc(1, sizeof(cpu_local_t) * smp_cpu_count);
 
     for (size_t i = 0; i < smp_cpu_count; i++) {
         struct limine_smp_info *smp_info = smp_response->cpus[i];

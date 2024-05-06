@@ -79,7 +79,7 @@ struct tu_invalid_builtin_data
 
 static void tu_kprintf_location(const char *message, struct tu_source_location loc)
 {
-    kprintf("UNDEFINED BEHAVIOUR DETECTED: %s at file %s, line %d, column %d\n", message, loc.file, loc.line, loc.column);
+    kprintf("ubsan: %s at file %s, line %d, column %d\n", message, loc.file, loc.line, loc.column);
 }
 
 void __ubsan_handle_add_overflow(struct tu_overflow_data *data)

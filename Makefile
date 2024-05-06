@@ -6,11 +6,11 @@ override MAKEFLAGS += -rR
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -smp 16 -cpu host
+override BASE_QEMU_ARGS := -M q35 -m 16G -enable-kvm -smp 16 -cpu "Nehalem"
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off \
 	-D error_log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=b1 \
 	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt \
-	#-no-reboot --no-shutdown #-trace *nvme* -cpu host
+	#-no-reboot --no-shutdown #-trace *nvme*
 
 .PHONY: all tools kernel run-iso-uefi run-img-bios run-img-uefi run-img-uefi-gdb
 

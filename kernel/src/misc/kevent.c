@@ -15,7 +15,7 @@ static inline kevent_subscriber_t *_subscriber_pool_alloc(void)
             // It'd be a better idea to use slab caches here since this is
             // a ton of overhead since this allocations only happen a few times
             // during system initalization i dont care enough
-            subscriber_pool = kmalloc(sizeof(kevent_subscriber_t));
+            subscriber_pool = kcalloc(1, sizeof(kevent_subscriber_t));
             subscriber_pool->next = old;
         }
     }
@@ -167,7 +167,7 @@ void kevent_launch(kevent_t *event)
     while (curr) {
         // maybe store this in the tctx
 
-        scheduler_wake(curr->subscribed_thread);
+        scheduler_attempt_wake(curr->subscribed_thread);
         curr = curr->next;
     }
 

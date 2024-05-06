@@ -24,6 +24,8 @@
 #include "nvme.h"
 #include "stacktrace.h"
 #include "compiler.h"
+#include "process.h"
+#include "locking.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -43,12 +45,13 @@ static unsigned long pseudo_rand(unsigned long *seed) {
 // by @NotBonzo
 static int stress_test(void) {
     void *ptr = NULL;
-    unsigned long sizes[20], i, j, test_cycles = 2000;
+    unsigned long sizes[20], i, j, test_cycles = 200;
     int ret = 0;
 
     unsigned long seed = 123456789;
     for (i = 0; i < 20; i++) {
         sizes[i] = (pseudo_rand(&seed) % (1024 * 1024 - 1)) + 1;
+        kprintf("sizes %lu: %lu\n", i, sizes[i]);
     }
 
     for (i = 0; i < test_cycles; i++) {
@@ -56,7 +59,7 @@ static int stress_test(void) {
             kprintf("run %lu\n", i);
 
         for (j = 0; j < 20; j++) {
-            ptr = kmalloc(sizes[j]);
+            ptr = kcalloc(1, sizes[j]);
             if (!ptr) {
                 kprintf("kalloc failed to allocate memory of size %lu\n", sizes[j]);
                 ret = 0xDEAD;
@@ -77,7 +80,7 @@ static int stress_test(void) {
             kfree(ptr);
             ptr = NULL;
 
-            ptr = kmalloc(sizes[j]);
+            ptr = kcalloc(1, sizes[j]);
             if (!ptr) {
                 kprintf("kmalloc failed again to allocate memory of size %lu\n", sizes[j]);
                 ret = 0xDEAD;
@@ -145,14 +148,16 @@ void init_acpi(void)
 
 void t2(void *arg)
 {
+    struct task *curr = scheduler_curr_task();
     ints_on();
 
-    kprintf("i am t2: %p\n", arg);
+    kprintf("i am t2: %p (tid=%lu, gid=%lu)\n", arg, curr->tid, curr->gid);
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 2; i++) {
         scheduler_sleep_for(1000 - system_ticks % 1000);
         kprintf("unix timestamp: %lu\n", unix_time);
     }
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
 
     scheduler_kernel_thread_exit();
 }
@@ -161,37 +166,33 @@ void kernel_main(void *args)
 {
     ints_on();
 
-    kprintf("i am t0 (main thread), args=%lu\n", args);
-
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
-
     stress_test();
 
-    init_pci();
+    init_acpi();
 
+    init_pci();
     kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
 
-    init_acpi();
+    kprintf("i am t0 (main thread), args=%lu\n", args);
 
     rtc_time_ctx_t c = rd_rtc();
     kprintf("UTC: century %hhu, year %hu, month %hhu, "
         "day %hhu, hour %hhu, minute %hhu, second %hhu\n",
         c.century, c.year, c.month, c.day, c.hour, c.minute, c.second);
 
-    for (int i = 0; i < 1000; i++) {
-        scheduler_sleep_for(1000 - system_ticks % 1000);
-        kprintf("unix timestamp: %lu\n", unix_time);
+    scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
+
+    for (int i = 0; i < 100000; i++) {
+        scheduler_sleep_for(10000 - system_ticks % 10000);
+        kprintf("10 seconds passed main thread\n");
     }
 
     scheduler_kernel_thread_exit();
 }
 
-void kernel_entry(void)
+int inti;
+
+comp_no_asan void kernel_entry(void)
 {
     if (LIMINE_BASE_REVISION_SUPPORTED == false || framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
         __asm__ ("hlt");
@@ -213,6 +214,7 @@ void kernel_entry(void)
 
     kprintf("Build from %s@%s\n", __DATE__, __TIME__);
 
+    inti = 1;
     kprintf("%s performing compatibility check...\n\r", kernel_okay_string);
     cpuid_common(&cpuid_data);
     cpuid_compatibility_check(&cpuid_data);

@@ -7,6 +7,7 @@
 #include "memory.h"
 #include "vmm.h"
 #include "compiler.h"
+#include "locking.h"
 
 // Basic slab allocator. Allocations on pow2 sized blocks are guaranteed to be aligned,
 // if allocated via the generic cache pools. When the sanitizer is enabled,
@@ -63,7 +64,7 @@ static inline void *slab2addr(struct slab *slab)
     // do some error checking here?
     struct page *pg = (struct page *)slab;
 
-    return (void *)(page2idx(pg) * PAGE_SIZE);
+    return (void *)(page2idx(pg) << PAGE_SHIFT);
 }
 
 static inline size_t _size2block(size_t size)
@@ -154,7 +155,7 @@ static void init_slab_cache(struct slab_cache *c, size_t alloc_size, const char 
     if (c->name) kpanic(0, NULL, "slab_cache already initalized");
 
     c->empty_slabs = c->full_slabs = c->partial_slabs = NULL;
-    c->lock.lock = c->lock.dumb_idea = 0;
+    c->lock.lock = 0;
     c->name = (char *)name;
     
     // not pow2 or not in range abort
@@ -221,7 +222,7 @@ static void new_slab(struct slab_cache *c, size_t page_count)
         // next block pointer
         *((uintptr_t *)(slab_data + i * c->obj_md_size)) = (uintptr_t)next;
     }
-    // last one nullptr
+    // last one NULL
     *((uintptr_t *)(slab_data + (new_slab->total_objs - 1) * c->obj_md_size)) = (uintptr_t)NULL;
 
     new_slab->freelist = (void *)slab_data;
@@ -273,10 +274,13 @@ static void *cache_alloc(struct slab_cache *c)
         // alloc from partial
         void *ret = part->freelist;
 
+        // advance freelist
+        part->freelist = (void *)*((uintptr_t *)part->freelist);
         part->this_cache->total_objs_allocated++;
-        if (++part->used_objs == part->total_objs) {
+        part->used_objs++;
+
+        if (part->used_objs == part->total_objs) {
             // if emptied
-            part->freelist = (void *)*((uintptr_t *)part->freelist);
             if (part->freelist) {
                 kpanic(0, NULL, "part->freelist has items, but total-used=%hu, size=%lu\n",
                     part->total_objs - part->used_objs, c->obj_size);
@@ -286,16 +290,11 @@ static void *cache_alloc(struct slab_cache *c)
             c->partial_slab_count--;
             _list_link(part, &c->empty_slabs);
             c->empty_slab_count++;
-        } else {
-            // advance freelist
-            part->freelist = (void *)*((uintptr_t *)part->freelist);
         }
 
         spin_unlock(&c->lock);
         return ret;
     }
-
-    if (part) kpanic(0, NULL, "slab error");
 
 got_full:
     struct slab *full = c->full_slabs;
@@ -337,7 +336,9 @@ static struct slab *_find_corresponding_slab(void *addr)
     } else if (this->flags & STRUCT_PAGE_FLAG_COMPOSITE_TAIL) {
         return (struct slab *)this->comp_head;
     } else {
-        kpanic(0, NULL, "Invalid slab flags for %p\n", addr);
+        slab_dbg_print();
+        kpanic(0, NULL, "Invalid slab flags for %p <size=%lu>\n",
+            addr, ((struct slab *)this)->total_objs);
         unreachable();
     }
 }
@@ -354,7 +355,7 @@ void *kmalloc(size_t size)
         struct page *ret = page_alloc(psize2order(size));
         ret->flags |= STRUCT_PAGE_FLAG_KMALLOC_BUDDY;
         ret->order = psize2order(size);
-        return (void *)(hhdm->offset + page2idx(ret) * PAGE_SIZE);
+        return (void *)(hhdm->offset + page2phys(ret));
     }
 
     if (size == 0) {
@@ -399,7 +400,6 @@ void *kmalloc(size_t size)
         kpanic(0, NULL, "pointer check failed %p->%p\n",
             ptr, (ret - KMALLOC_REDZONE_LEFT + cache->obj_md_size - sizeof(size_t)));
 #endif
-
     return ret;
 }
 
@@ -461,7 +461,7 @@ void kfree(void *addr)
     spin_lock(&s->this_cache->lock);
 
     // add object to slabs freelist
-    *((uintptr_t *)addr) = (uintptr_t)s->freelist;
+    *(void **)addr = s->freelist;
     s->freelist = addr;
 
     struct slab_cache *c = s->this_cache;
@@ -479,9 +479,7 @@ void kfree(void *addr)
         c->full_slab_count++;
 
         _attempt_free_full(c);
-    } else {
-        // nothing
-    }
+    } // else stay in partial
 
     s->used_objs--;
     c->total_objs_allocated--;
@@ -496,8 +494,22 @@ void *krealloc(void *addr, size_t size)
     if (addr == NULL)
         return new;
 
-    memcpy(new, addr, size);
+    size_t copy_size;
+
+    struct page *pg = phys2page((uintptr_t)addr - hhdm->offset);
+    if (pg->flags & STRUCT_PAGE_FLAG_KMALLOC_BUDDY) {
+        copy_size = MIN(pg->order, size);
+    } else {
+        // can't do this if buddy page!!!
+        // make sure not to copy oob of the old page
+        struct slab *s = _find_corresponding_slab(addr);
+        copy_size = MIN(s->this_cache->obj_size, size);
+    }
+
+    memcpy(new, addr, copy_size);
+
     kfree(addr);
+
     return new;
 }
 
@@ -525,7 +537,8 @@ void slab_dbg_print(void)
         int j = 0;
         kprintf("    full_slabs:\n");
         while (curr) {
-            kprintf("        %d: total=%hu, used=%hu\n", j, curr->total_objs, curr->used_objs);
+            kprintf("        %d: total=%hu, used=%hu @ %p\n",
+                j, curr->total_objs, curr->used_objs, (uintptr_t)slab2addr(curr) + hhdm->offset);
             curr = curr->next;
             j++;
         }
@@ -534,7 +547,8 @@ void slab_dbg_print(void)
         j = 0;
         kprintf("    partial_slabs:\n");
         while (curr) {
-            kprintf("        %d: total=%hu, used=%hu\n", j, curr->total_objs, curr->used_objs);
+            kprintf("        %d: total=%hu, used=%hu @ %p\n",
+                j, curr->total_objs, curr->used_objs, (uintptr_t)slab2addr(curr) + hhdm->offset);
             curr = curr->next;
             j++;
         }
@@ -543,7 +557,8 @@ void slab_dbg_print(void)
         j = 0;
         kprintf("    empty_slabs:\n");
         while (curr) {
-            kprintf("        %d: total=%hu, used=%hu\n", j, curr->total_objs, curr->used_objs);
+            kprintf("        %d: total=%hu, used=%hu @ %p\n",
+                j, curr->total_objs, curr->used_objs, (uintptr_t)slab2addr(curr) + hhdm->offset);
             curr = curr->next;
             j++;
         }
