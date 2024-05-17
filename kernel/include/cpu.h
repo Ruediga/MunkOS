@@ -10,8 +10,6 @@
 
 #define arch_spin_hint() __asm__ volatile ("pause")
 
-typedef uint8_t int_status_t;
-
 struct task;
 
 struct task_state_segment {
@@ -100,28 +98,6 @@ static inline uint64_t read_processor_id(void) {
     uint64_t pid;
     __asm__ volatile ("rdpid %0" : "=r" (pid));
     return pid;
-}
-
-static inline int_status_t ints_fetch_disable(void) {
-    uint64_t rflags;
-    __asm__ volatile("pushfq\n\t"
-                     "popq %0\n\t"
-                     "cli"
-                     : "=r" (rflags) : : "memory");
-    return (int_status_t)((rflags >> 9) & 1);
-}
-
-static inline void ints_status_restore(int_status_t state) {
-    if (state)
-        __asm__ ("sti");
-}
-
-static inline void ints_off(void) {
-    __asm__ ("cli");
-}
-
-static inline void ints_on(void) {
-    __asm__ ("sti");
 }
 
 void nmi_enable(void);

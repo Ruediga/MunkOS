@@ -3,6 +3,8 @@ serial_log.txt
 image.img
 image.iso
 
+.cache
+
 **/obj/
 **/bin/
 # don't forget to keep this up to date

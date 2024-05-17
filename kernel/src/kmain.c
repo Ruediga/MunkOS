@@ -10,7 +10,7 @@
 #include "gdt.h"
 #include "interrupt.h"
 #include "frame_alloc.h"
-#include "vmm.h"
+#include "mmu.h"
 #include "kheap.h"
 #include "_acpi.h"
 #include "apic.h"
@@ -26,6 +26,7 @@
 #include "compiler.h"
 #include "process.h"
 #include "locking.h"
+#include "uacpi/kernel_api.h"
 
 LIMINE_BASE_REVISION(1)
 
@@ -44,6 +45,7 @@ static unsigned long pseudo_rand(unsigned long *seed) {
 
 // by @NotBonzo
 static int stress_test(void) {
+    kprintf_verbose("%s starting allocator stress test\n", ansi_progress_string);
     void *ptr = NULL;
     unsigned long sizes[20], i, j, test_cycles = 200;
     int ret = 0;
@@ -51,17 +53,14 @@ static int stress_test(void) {
     unsigned long seed = 123456789;
     for (i = 0; i < 20; i++) {
         sizes[i] = (pseudo_rand(&seed) % (1024 * 1024 - 1)) + 1;
-        kprintf("sizes %lu: %lu\n", i, sizes[i]);
     }
 
     for (i = 0; i < test_cycles; i++) {
-        if (!(i % 1000))
-            kprintf("run %lu\n", i);
 
         for (j = 0; j < 20; j++) {
             ptr = kcalloc(1, sizes[j]);
             if (!ptr) {
-                kprintf("kalloc failed to allocate memory of size %lu\n", sizes[j]);
+                kprintf("  - kalloc failed to allocate memory of size %lu\n", sizes[j]);
                 ret = 0xDEAD;
                 goto out;
             }
@@ -70,7 +69,7 @@ static int stress_test(void) {
 
             ptr = krealloc(ptr, sizes[j] * 2);
             if (!ptr) {
-                kprintf("krealloc failed to increase memory size to %lu\n", sizes[j] * 2);
+                kprintf("  - krealloc failed to increase memory size to %lu\n", sizes[j] * 2);
                 ret = 0xDEAD;
                 goto out;
             }
@@ -82,14 +81,14 @@ static int stress_test(void) {
 
             ptr = kcalloc(1, sizes[j]);
             if (!ptr) {
-                kprintf("kmalloc failed again to allocate memory of size %lu\n", sizes[j]);
+                kprintf("  - kmalloc failed again to allocate memory of size %lu\n", sizes[j]);
                 ret = 0xDEAD;
                 goto out;
             }
 
             ptr = krealloc(ptr, sizes[j] / 3);
             if (!ptr) {
-                kprintf("krealloc failed to decrease memory size to %lu\n", sizes[j] / 3);
+                kprintf("  - krealloc failed to decrease memory size to %lu\n", sizes[j] / 3);
                 ret = 0xDEAD;
                 goto out;
             }
@@ -114,7 +113,7 @@ void init_acpi(void)
         .rsdp = (uintptr_t)rsdp_request.response->address - hhdm->offset,
  
         .rt_params = {
-            .log_level = UACPI_LOG_TRACE,
+            .log_level = UACPI_LOG_ERROR,
             .flags = 0,
         },
     };
@@ -140,7 +139,7 @@ void init_acpi(void)
     //    kpanic(0, NULL, "uACPI failed to initialize GPE: %s", uacpi_status_to_string(ret));
     //}
 
-    kprintf("%s uACPI initialized\n\r", kernel_okay_string);
+    kprintf("%s uacpi initialized\n", ansi_okay_string);
  
     // at this point we can do driver stuff and fully use acpi
     // thanks @CopyObject abuser
@@ -149,13 +148,19 @@ void init_acpi(void)
 void t2(void *arg)
 {
     struct task *curr = scheduler_curr_task();
-    ints_on();
+    preempt_enable();
 
-    kprintf("i am t2: %p (tid=%lu, gid=%lu)\n", arg, curr->tid, curr->gid);
+    kprintf("i am t2: %p (tid=%lu, gid=%lu)\n",
+        arg, curr->tid, curr->gid);
 
-    for (int i = 0; i < 2; i++) {
-        scheduler_sleep_for(1000 - system_ticks % 1000);
-        kprintf("unix timestamp: %lu\n", unix_time);
+    for (int i = 0; i < 5; i++) {
+        scheduler_sleep_for(1024 - system_ticks % 1024);
+        //kprintf("unix timestamp: %lu\n", unix_time);
+
+        //rtc_time_ctx_t c = rd_rtc();
+        //kprintf("UTC: century %hhu, year %hu, month %hhu, "
+        //    "day %hhu, hour %hhu, minute %hhu, second %hhu\n",
+        //    c.century, c.year, c.month, c.day, c.hour, c.minute, c.second);
     }
     scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
 
@@ -164,16 +169,21 @@ void t2(void *arg)
 
 void kernel_main(void *args)
 {
-    ints_on();
+    (void)args;
 
-    stress_test();
+    preempt_enable();
+
+    if (stress_test()) {
+        kprintf("%s allocator stress test failed\n", ansi_failed_string);
+    } else {
+        kprintf_verbose("%s allocator stress test completed\n", ansi_okay_string);
+    }
 
     init_acpi();
 
     init_pci();
-    kprintf("%s scanned pci(e) bus for devices...\n\r", kernel_okay_string);
 
-    kprintf("i am t0 (main thread), args=%lu\n", args);
+    vfs_init();
 
     rtc_time_ctx_t c = rd_rtc();
     kprintf("UTC: century %hhu, year %hu, month %hhu, "
@@ -182,17 +192,14 @@ void kernel_main(void *args)
 
     scheduler_new_kernel_thread(t2, NULL, TASK_PRIORITY_NORMAL);
 
-    for (int i = 0; i < 100000; i++) {
-        scheduler_sleep_for(10000 - system_ticks % 10000);
-        kprintf("10 seconds passed main thread\n");
-    }
+    for(;;)
+        __asm__ volatile ("hlt");
 
+    // if we exit instead of spinning we kill all other kernel tasks with kthread_exit()
     scheduler_kernel_thread_exit();
 }
 
-int inti;
-
-comp_no_asan void kernel_entry(void)
+void kernel_entry(void)
 {
     if (LIMINE_BASE_REVISION_SUPPORTED == false || framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count < 1) {
         __asm__ ("hlt");
@@ -212,57 +219,45 @@ comp_no_asan void kernel_entry(void)
 
     init_serial();
 
-    kprintf("Build from %s@%s\n", __DATE__, __TIME__);
+    kprintf_verbose("%s Build from %s@%s\n", ansi_okay_string, __DATE__, __TIME__);
 
-    inti = 1;
-    kprintf("%s performing compatibility check...\n\r", kernel_okay_string);
+    kprintf_verbose("%s performing compatibility check...\n", ansi_progress_string);
     cpuid_common(&cpuid_data);
     cpuid_compatibility_check(&cpuid_data);
     if (!memcmp(cpuid_data.cpu_vendor, "GenuineIntel", 13)) {
         // intel only
         kprintf("  - cpuid: %s\n", cpuid_data.cpu_name_string);
     }
+    kprintf_verbose("%s system is supported\n", ansi_okay_string);
 
-    kprintf("%s framebuffer width: %lu, heigth: %lu\n\r", kernel_okay_string, framebuffer->width, framebuffer->height);
+    kprintf_verbose("%s framebuffer width: %lu, heigth: %lu\n\r", ansi_okay_string, framebuffer->width, framebuffer->height);
 
-    kprintf("%s setting up gdt...\n\r", kernel_okay_string);
+    kprintf_verbose("%s initializing architecture specifics...\n", ansi_progress_string);
     init_gdt();
-
-    kprintf("%s enabling interrupts...\n\r", kernel_okay_string);
     init_idt();
+    kprintf("%s basic architectural setup done\n", ansi_okay_string);
 
-    // pmm
-    kprintf("%s initializing pmm...\n\r", kernel_okay_string);
+    kprintf_verbose("%s initializing memory manager...\n", ansi_progress_string);
     allocator_init();
-
-    // vmm
-    kprintf("%s initializing vmm && kernel pm...\n\r", kernel_okay_string);
     init_vmm();
-
-    // heap
-    kprintf("%s allocating space for kernel heap...\n\r", kernel_okay_string);
     slab_init();
+    kprintf("%s mm setup done\n", ansi_okay_string);
 
-    kprintf("%s parsing acpi tables...\n\r", kernel_okay_string);
     parse_acpi();
 
-    kprintf("%s setting up the ioapic...\n\r", kernel_okay_string);
     init_ioapic();
 
-    kprintf("%s scheduling initialized...\n\r", kernel_okay_string);
     init_scheduling();
 
-    kprintf("%s enabling smp...\n\r", kernel_okay_string);
     boot_other_cores();
 
-    kprintf("%s initializing time...\n\r", kernel_okay_string);
     time_init();
 
     ps2_init();
 
     scheduler_new_kernel_thread(kernel_main, NULL, TASK_PRIORITY_NORMAL);
 
-    if (interrupts_enabled())
+    if (preempt_fetch())
         kpanic(0, NULL, "bad\n");
 
     switch_to_next_task();

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "kheap.h"
+#include "memory.h"
 
 /*
  * |============|

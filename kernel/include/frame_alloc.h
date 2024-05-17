@@ -7,13 +7,25 @@
 #include "cpu.h"
 #include "interrupt.h"
 
+#define BUDDY_HIGH_ORDER (10)
+#define BUDDY_LOW_ORDER (0)
+
+#define PAGES_1_ORDER (0)
+#define PAGES_2_ORDER (1)
+#define PAGES_4_ORDER (2)
+#define PAGES_8_ORDER (3)
+#define PAGES_16_ORDER (4)
+#define PAGES_32_ORDER (5)
+#define PAGES_64_ORDER (6)
+#define PAGES_128_ORDER (7)
+#define PAGES_256_ORDER (8)
+#define PAGES_512_ORDER (9)
+#define PAGES_1024_ORDER (10)
+
 #define STRUCT_PAGE_ALIGNMENT (16)
 
 #define PAGE_SIZE (0x1000ul)
 #define PAGE_SHIFT (12ul)
-
-#define BUDDY_HIGH_ORDER (10ul)
-#define BUDDY_LOW_ORDER (0ul)
 
 // struct page flag bits (32 bit signed int)
 #define STRUCT_PAGE_FLAG_COMPOSITE_TAIL (1 << 1)
@@ -94,6 +106,7 @@ struct memmap_entry {
 void allocator_init();
 // call this for physically contiguous, pow2 sized blocks
 struct page *page_alloc(size_t order);
+struct page *page_calloc(size_t order);
 void *page_alloc_temp(size_t order);                // remove
 void page_free(struct page *page, size_t order);
 void page_free_temp(void *address, size_t size);    // remove

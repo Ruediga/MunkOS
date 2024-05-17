@@ -1,10 +1,10 @@
 #include "pci.h"
-#include "io.h"
+#include "macros.h"
 #include "_acpi.h"
 #include "interrupt.h"
 #include "kprintf.h"
 #include "frame_alloc.h"
-#include "vmm.h"
+#include "mmu.h"
 #include "nvme.h"
 
 VECTOR_TMPL_TYPE_NON_NATIVE(mcfg_entry);
@@ -91,8 +91,8 @@ static inline void pci_dev_calc_phys(pci_device *dev)
 
         dev->phys_base = entry->base + (((dev->bus - entry->host_start) << 20) | (dev->dev_slot << 15) | (dev->function << 12));
 
-        vmm_map_single_page(&kernel_pmc, ALIGN_DOWN(dev->phys_base + hhdm->offset, PAGE_SIZE), ALIGN_DOWN(dev->phys_base, PAGE_SIZE),
-            PTE_BIT_EXECUTE_DISABLE | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE | PTE_BIT_DISABLE_CACHING);
+        mmu_map_single_page_4k(&kernel_pmc, ALIGN_DOWN(dev->phys_base + hhdm->offset, PAGE_SIZE), ALIGN_DOWN(dev->phys_base, PAGE_SIZE),
+            PM_COMMON_NX | PM_COMMON_PRESENT | PM_COMMON_WRITE | PM_COMMON_PCD);
         return;
     }
 
@@ -127,7 +127,7 @@ void pci_check_device(uint8_t bus, uint8_t dev_slot, uint8_t function)
 
     // if pci bridge:
     if (device->class_code == 0x6 && device->subclass_code == 0x4) {
-        kprintf("found pci to pci bridge with prog_if=%u: ", (uint32_t)device->prog_if);
+        kprintf("  - found pci to pci bridge with prog_if=%u: ", (uint32_t)device->prog_if);
         uint32_t bus_regs = pci_read(device, 0x18, DOUBLE_WORD);
         kprintf("primary=%u, secondary=%u, subordinate=%u\n",
         bus_regs & 0xFF, (bus_regs >> 8) & 0xFF, (bus_regs >> 16) & 0xFF);
@@ -149,6 +149,7 @@ void pci_scan_bus(uint8_t bus)
 // [TODO] handle pci-to-pci bridge adapters
 void init_pci(void)
 {
+    kprintf_verbose("%s scanning pci(e) bus for devices...\n", ansi_progress_string);
     if (!mcfg_ptr) kpanic(0, NULL, "PCIe not available, PCI as fallback not supported\n");
 
     size_t count = (mcfg_ptr->header.length - sizeof(struct acpi_sdt_header) - sizeof(uint64_t)) / sizeof(struct acpi_mcfg_entry);
@@ -196,6 +197,8 @@ void init_pci(void)
             init_nvme_controller(dev);
         }
     }
+
+    kprintf("%s scanned pci(e) bus for devices\n", ansi_okay_string);
 }
 
 // pass *zeroed* pci_base_addr_reg_ctx structure

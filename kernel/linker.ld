@@ -17,18 +17,17 @@ PHDRS
 
 SECTIONS
 {
-    /* We wanna be placed in the topmost 2GiB of the address space, for optimisations */
-    /* and because that is what the Limine spec mandates. */
-    /* Any address in this region will do, but often 0xffffffff80000000 is chosen as */
-    /* that is the beginning of the region. */
+    /* top 2gib of addr space (limine spec) */
     . = 0xffffffff80000000;
 
+    . = ALIGN(0x1000);
     text_start_addr = .;
 
     .text : {
         *(.text .text.*)
     } :text
 
+    . = ALIGN(0x1000);
     text_end_addr = .;
 
     /* Move to the next memory page for .rodata */
@@ -41,6 +40,7 @@ SECTIONS
         *(.rodata .rodata.*)
     } :rodata
 
+    . = ALIGN(0x1000);
     rodata_end_addr = .;
 
     /* Move to the next memory page for .data */
@@ -67,6 +67,7 @@ SECTIONS
         *(COMMON)
     } :data
 
+    . = ALIGN(0x1000);
     data_end_addr = .;
 
 

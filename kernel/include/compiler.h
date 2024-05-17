@@ -10,3 +10,4 @@
 #define comp_weak __attribute__((weak))
 
 #define comp_no_asan __attribute__((no_sanitize_address))
+#define comp_no_ubsan __attribute__((no_sanitize("undefined")))

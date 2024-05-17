@@ -12,9 +12,6 @@ static inline kevent_subscriber_t *_subscriber_pool_alloc(void)
         // empty: fill up again
         for (int i = 0; i < KEVENT_SUBSCRIBER_POOL_REFILL_AMOUNT; i++) {
             kevent_subscriber_t *old = subscriber_pool;
-            // It'd be a better idea to use slab caches here since this is
-            // a ton of overhead since this allocations only happen a few times
-            // during system initalization i dont care enough
             subscriber_pool = kcalloc(1, sizeof(kevent_subscriber_t));
             subscriber_pool->next = old;
         }
@@ -79,13 +76,13 @@ static inline int _find_unprocessed(kevent_t **events, int event_count)
     for (int i = 0; i < event_count; i++) {
         kevent_t *ev = events[i];
 
-        spin_lock(&ev->lock);
+        spin_lock_global(&ev->lock);
         if (ev->unprocessed) {
             ev->unprocessed--;
-            spin_unlock(&ev->lock);
+            spin_unlock_global(&ev->lock);
             return i;
         }
-        spin_unlock(&ev->lock);
+        spin_unlock_global(&ev->lock);
     }
 
     return KEVENT_POLL_INVALID;
@@ -97,9 +94,9 @@ static void kevent_subscribe(kevent_t **events, int event_count, struct task *th
     for (int i = 0; i < event_count; i++) {
         kevent_t *ev = events[i];
 
-        spin_lock(&ev->lock);
+        spin_lock_global(&ev->lock);
         _subscriber_list_link(ev, this);
-        spin_unlock(&ev->lock);
+        spin_unlock_global(&ev->lock);
     }
 }
 
@@ -109,9 +106,9 @@ static void kevent_unsubscribe(kevent_t **events, int event_count, struct task *
     for (int i = 0; i < event_count; i++) {
         kevent_t *ev = events[i];
 
-        spin_lock(&ev->lock);
+        spin_lock_global(&ev->lock);
         _subscriber_list_unlink(ev, this);
-        spin_unlock(&ev->lock);
+        spin_unlock_global(&ev->lock);
     }
 }
 
@@ -121,7 +118,7 @@ static void kevent_unsubscribe(kevent_t **events, int event_count, struct task *
 // stop launching events)
 int kevents_poll(kevent_t **events, int event_count)
 {
-    int_status_t intstate = ints_fetch_disable();
+    int_status_t intstate = preempt_fetch_disable();
 
     int out = KEVENT_POLL_INVALID;
 
@@ -132,7 +129,7 @@ int kevents_poll(kevent_t **events, int event_count)
 
     // we found an unprocessed event
     if (out != KEVENT_POLL_INVALID) {
-        ints_status_restore(intstate);
+        preempt_restore(intstate);
         return out;
     }
 
@@ -147,7 +144,7 @@ int kevents_poll(kevent_t **events, int event_count)
     // do this so events can get removed between consecutive calls to kevents_poll()
     kevent_unsubscribe(events, event_count, this_thread);
 
-    ints_status_restore(intstate);
+    preempt_restore(intstate);
     return out;
 }
 
@@ -157,8 +154,8 @@ void kevent_launch(kevent_t *event)
     if (!event->subscribers)
         kpanic(0, NULL, "Should we be able to launch events with no subscribers?\n");
 
-    int_status_t istate = ints_fetch_disable();
-    spin_lock(&event->lock);
+    int_status_t istate = preempt_fetch_disable();
+    spin_lock_global(&event->lock);
 
     event->unprocessed++;
 
@@ -171,6 +168,6 @@ void kevent_launch(kevent_t *event)
         curr = curr->next;
     }
 
-    spin_unlock(&event->lock);
-    ints_status_restore(istate);
+    spin_unlock_global(&event->lock);
+    preempt_restore(istate);
 }

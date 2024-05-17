@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vmm.h"
+#include "mmu.h"
 #include "vector.h"
 #include "interrupt.h"
 #include "gdt.h"
@@ -73,7 +73,7 @@ struct task {
     void *stack;                // the tasks thread - also a kernel threads common int thread
     size_t stack_size;
 
-    page_map_ctx *pmc;
+    page_map_ctx_t *pmc;
 
     struct jmpbuf context;
 

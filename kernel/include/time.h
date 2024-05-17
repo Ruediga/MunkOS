@@ -39,6 +39,10 @@ struct ktimer_node {
 extern volatile size_t system_ticks;
 extern volatile size_t unix_time;
 
+static inline size_t get_unixtime(void) {
+    return unix_time;
+}
+
 void register_system_timer(struct ktimer_node *tmr, size_t ms);
 
 // pit

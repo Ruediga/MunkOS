@@ -42,7 +42,7 @@ struct limine_hhdm_request hhdm_request = {
     .revision = 0
 };
 
-comp_no_asan size_t early_mem_init()
+size_t early_mem_init()
 {
     if (!memmap_request.response || !hhdm_request.response) {
         kpanic(0, NULL, "memmap or hhdm request failed\n");
@@ -96,7 +96,7 @@ comp_no_asan size_t early_mem_init()
 
 // very early first fit algorithm, memory returned is hhdm-ed
 // mustn't fail
-comp_no_asan void *early_mem_alloc(size_t size)
+void *early_mem_alloc(size_t size)
 {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_alloc() with early_mem_uninitialized=0\n");
@@ -127,11 +127,10 @@ comp_no_asan void *early_mem_alloc(size_t size)
 
     kpanic(KPANIC_FLAGS_DONT_TRACE_STACK | KPANIC_FLAGS_THIS_CORE_ONLY, NULL, "early_mem_alloc(%lu) failed\n", size);
     unreachable();
-    return NULL;
 }
 
 // cleans up data structures, fixes memmap
-comp_no_asan size_t early_mem_exit(void)
+size_t early_mem_exit(void)
 {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_exit() with early_mem_uninitialized=0\n");
@@ -158,18 +157,18 @@ comp_no_asan size_t early_mem_exit(void)
     return early_mem_bytes_allocated;
 }
 
-comp_no_asan void early_mem_dbg_print(void)
+void early_mem_dbg_print(void)
 {
-    kprintf("0x%lx bytes ( >= %lu pages) allocated until now\n",
+    kprintf_verbose("  - early_mem: 0x%lx bytes ( >= %lu pages) allocated until now\n",
         early_mem_bytes_allocated, early_mem_bytes_allocated / PAGE_SIZE);
     for (size_t i = 0; i < memmap_entry_count; i++) {
-        kprintf("memmap: region %lu starting at 0x%lx (%lu page(s)): !usable=%lu\n",
+        kprintf_verbose("  - early_mem: memmap: region %lu starting at 0x%lx (%lu page(s)): !usable=%lu\n",
             i, memmap[i].start, memmap[i].length / PAGE_SIZE, memmap[i].type);
     }
 }
 
 // return pages usable and bytes free, can be called even after early_mem_exit()
-comp_no_asan void early_mem_statistics(size_t *usable, size_t *free) {
+void early_mem_statistics(size_t *usable, size_t *free) {
     if (!early_mem_is_initialized) {
         kpanic(0, NULL, "trying to call early_mem_statistics() with early_mem_uninitialized=0\n");
     }

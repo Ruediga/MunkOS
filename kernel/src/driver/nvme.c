@@ -1,7 +1,7 @@
 #include "nvme.h"
 #include "macros.h"
 #include "pci.h"
-#include "vmm.h"
+#include "mmu.h"
 #include "frame_alloc.h"
 #include "interrupt.h"
 #include "kprintf.h"
@@ -195,23 +195,26 @@ static size_t nvme_read_block(struct nvme_ns_ctx *ns, size_t block)
     size_t index = nvme_cache_hashmap_find(container->hashmap, block);
 
     if (index != NVME_IDX_INV) {
-        kprintf("read: found cached block %lu at index %lu\n", block, index);
+        //kprintf_verbose("read: found cached block %lu at index %lu\n", block, index);
         nvme_cache_inform_usage(container, index);
         return index;
     } else {
         size_t evicted_idx = nvme_cache_lru_evict(container);
         if (container->cache[evicted_idx].status == NVME_CACHE_DIRTY) {
-            if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size) * container->cache[evicted_idx].bid, (NVME_BLOCK_SIZE / ns->lba_size),  container->cache[evicted_idx].block, NVME_OPC_IO_WRITE)) {
+            if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size)
+                    * container->cache[evicted_idx].bid, (NVME_BLOCK_SIZE / ns->lba_size),
+                    container->cache[evicted_idx].block, NVME_OPC_IO_WRITE)) {
                 kprintf_verbose("Failed to write block %lu to disk\n", container->cache[evicted_idx].bid);
                 return NVME_IDX_INV;
             }
             kprintf_verbose("Wrote block %lu to disk\n", container->cache[evicted_idx].bid);
         }
-        if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size) * block, (NVME_BLOCK_SIZE / ns->lba_size), container->cache[evicted_idx].block, NVME_OPC_IO_READ)) {
+        if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size) * block,
+                (NVME_BLOCK_SIZE / ns->lba_size), container->cache[evicted_idx].block, NVME_OPC_IO_READ)) {
             kprintf_verbose("Failed to read block %lu from disk\n", block);
             return NVME_IDX_INV;
         }
-        kprintf_verbose("Read block %lu from disk\n", block);
+        //kprintf_verbose("Read block %lu from disk\n", block);
 
         nvme_cache_hashmap_update(container->hashmap, container->cache[evicted_idx].bid, block, evicted_idx);
         container->cache[evicted_idx].bid = block;
@@ -239,7 +242,9 @@ static size_t nvme_prep_write_full_block(struct nvme_ns_ctx *ns, size_t block)
     } else {
         size_t evicted_idx = nvme_cache_lru_evict(container);
         if (container->cache[evicted_idx].status == NVME_CACHE_DIRTY) {
-            if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size) * container->cache[evicted_idx].bid, (NVME_BLOCK_SIZE / ns->lba_size),  container->cache[evicted_idx].block, NVME_OPC_IO_WRITE)) {
+            if (!nvme_rw_blocking(ns, (NVME_BLOCK_SIZE / ns->lba_size)
+                    * container->cache[evicted_idx].bid, (NVME_BLOCK_SIZE / ns->lba_size),
+                    container->cache[evicted_idx].block, NVME_OPC_IO_WRITE)) {
                 kprintf_verbose("Failed to write block %lu to disk\n", container->cache[evicted_idx].bid);
                 return NVME_IDX_INV;
             }
@@ -271,7 +276,7 @@ static void nvme_flush_blocks(struct nvme_cache_container *container)
 
 static void nvme_debug_cqe_unsuccessful(nvme_ccmd_t cqe)
 {
-    kprintf("nvme: cqe failed!\ncid = %u, phase = %u, status = %u [sct=0x%X, sc=0x%X], sqid = %u\n",
+    kprintf("  - nvme: cqe failed!\ncid = %u, phase = %u, status = %u [sct=0x%X, sc=0x%X], sqid = %u\n",
         (uint32_t)cqe.cid, (uint32_t)cqe.status & 1, (uint32_t)cqe.status >> 1,
         (((uint32_t)cqe.status >> 1) >> 8) & 0b111, ((uint32_t)cqe.status >> 1) & 0xFF, (uint32_t)cqe.sqid);
 }
@@ -307,15 +312,6 @@ static void nvme_init_queue(struct nvme_controller *controller, struct nvme_queu
     void *sq = page_alloc_temp(psize2order(pages_sq * PAGE_SIZE));
     void *cq = page_alloc_temp(psize2order(pages_cq * PAGE_SIZE));
 
-    for (size_t page = 0; page < pages_sq; page++) {
-        vmm_map_single_page(&kernel_pmc, hhdm->offset + (uintptr_t)sq + page * PAGE_SIZE,
-            (uintptr_t)sq + page * PAGE_SIZE, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
-    }
-    for (size_t page = 0; page < pages_cq; page++) {
-        vmm_map_single_page(&kernel_pmc, hhdm->offset + (uintptr_t)cq + page * PAGE_SIZE,
-            (uintptr_t)cq + page * PAGE_SIZE, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
-    }
-
     queue->sq.data = (void *)((uintptr_t)sq + hhdm->offset);
     queue->cq.data = (void *)((uintptr_t)cq + hhdm->offset);
     
@@ -323,8 +319,10 @@ static void nvme_init_queue(struct nvme_controller *controller, struct nvme_queu
     memset((void *)queue->cq.data, 0, NVME_CQE_SIZE * entries);
 
     // bar0 + 1000h + ((2y [+ 1]) * (4 << CAP.DSTRD)
-    queue->sq.sqt = (volatile void *)((uintptr_t)controller->properties + 0x1000 + ((2 * id) * (4 << NVME_PROPERTIES_DSTRD(controller->properties))));
-    queue->cq.cqh = (volatile void *)((uintptr_t)controller->properties + 0x1000 + ((2 * id + 1) * (4 << NVME_PROPERTIES_DSTRD(controller->properties))));
+    queue->sq.sqt = (volatile void *)((uintptr_t)controller->properties
+        + 0x1000 + ((2 * id) * (4 << NVME_PROPERTIES_DSTRD(controller->properties))));
+    queue->cq.cqh = (volatile void *)((uintptr_t)controller->properties
+        + 0x1000 + ((2 * id + 1) * (4 << NVME_PROPERTIES_DSTRD(controller->properties))));
 
     queue->sq.head = queue->sq.cid_counter = queue->sq.tail = queue->cq.head = 0;
 
@@ -377,7 +375,7 @@ static nvme_ccmd_t nvme_queue_poll_single_cqe(struct nvme_queue_ctx *queue)
     // free prp list if one was used
     uintptr_t cpy = queue->prp_list_container[out.cid % queue->entries];
     if (cpy != 0) {
-        vmm_unmap_single_page(&kernel_pmc, cpy, true);
+        mmu_unmap_single_page(&kernel_pmc, cpy, true);
         queue->prp_list_container[out.cid % queue->entries] = 0;
     }
 
@@ -400,8 +398,6 @@ union nvme_identify_ds *nvme_issue_cmd_identify(struct nvme_controller *controll
 {
     // [FIXME] fix this sht (don't claim hhdm page)
     union nvme_identify_ds *identifier = page_alloc_temp(psize2order(1 * PAGE_SIZE));
-    vmm_map_single_page(&kernel_pmc, hhdm->offset + (uintptr_t)identifier,
-        (uintptr_t)identifier, PTE_BIT_PRESENT | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_READ_WRITE);
     identifier = (void *)((uintptr_t)identifier + hhdm->offset);
     memset(identifier, 0, PAGE_SIZE);
 
@@ -455,9 +451,9 @@ void init_nvme_controller(pci_device *dev)
     //if (!nvme_pci_bar0.is_mmio_bar) kpanic(0, NULL, "NVME_INIT: pci bar0 is not mmio mapped\n");
     for (uintptr_t ptr = ALIGN_DOWN((uintptr_t)nvme_pci_bar0.base, PAGE_SIZE);
         ptr < ALIGN_UP((uintptr_t)nvme_pci_bar0.base + nvme_pci_bar0.size, PAGE_SIZE); ptr += PAGE_SIZE) {
-        vmm_unmap_single_page(&kernel_pmc, ptr + hhdm->offset, false); // do not free page
-        vmm_map_single_page(&kernel_pmc, ptr + hhdm->offset, ptr,
-            PTE_BIT_DISABLE_CACHING | PTE_BIT_EXECUTE_DISABLE | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+        mmu_unmap_single_page(&kernel_pmc, ptr + hhdm->offset, false); // do not free page
+        mmu_map_single_page_4k(&kernel_pmc, ptr + hhdm->offset, ptr,
+            PM_COMMON_PCD | PM_COMMON_NX | PM_COMMON_PRESENT | PM_COMMON_WRITE);
     }
 
 
@@ -507,7 +503,7 @@ void init_nvme_controller(pci_device *dev)
 
     // reset software progress marker, if supported
     uint32_t is_supported = controller->ctrler_identify->ctrler.oncs & (1 << 4);
-    kprintf("nvme: software progress marker supported: %u\n", (uint32_t)is_supported);
+    kprintf("  - nvme: software progress marker supported: %u\n", (uint32_t)is_supported);
     if (!is_supported) goto not_supported;
 
     nvme_scmd_t marker_cmd = {
@@ -525,7 +521,7 @@ void init_nvme_controller(pci_device *dev)
     nvme_ccmd_t cqe = nvme_queue_poll_single_cqe(&controller->aq);
     if (!NVME_CQE_SUCCESSFUL(cqe)) {
         nvme_debug_cqe_unsuccessful(cqe);
-        kprintf("nvme: [probably] non-fatal error: software progress marker could not be saved or another error occured\n");
+        kprintf("  - nvme: [probably] non-fatal error: software progress marker could not be saved or another error occured\n");
     }
 
 not_supported:
@@ -559,7 +555,7 @@ not_supported:
     }
     // zero based
     controller->queue_count = nsqa;
-    kprintf_verbose("NVME_INIT: reserved %lu queues\n", controller->queue_count);
+    kprintf_verbose("  - nvme: reserved %lu queues\n", controller->queue_count);
 
     struct device *tempdev = NULL;
     for (size_t i = 0; i < sizeof(union nvme_identify_ds) / sizeof(uint32_t); i++) {
@@ -581,7 +577,7 @@ not_supported:
         } else {
             nsctx.mdts = ~0ul;
         }
-        kprintf_verbose("nvme: maximum transfer size 0x%lX\n", nsctx.mdts);
+        kprintf_verbose("  - nvme: maximum transfer size 0x%lX\n", nsctx.mdts);
 
         // record each ns block size, capacity, read-only (not yet implemented)
         union nvme_identify_ds *ns_ident = nvme_issue_cmd_identify(controller, NVME_CNS_NAMESPACE, 0, nsid_list->active_nsid_list.ids[i]);
@@ -591,7 +587,7 @@ not_supported:
 
         // implement optperf?
 
-        kprintf_verbose("nvme: namespace: nsze=%u lb; ncap=%lu / nuse=%lu; nlbaf=%lu; flbas=%lu\n",
+        kprintf_verbose("  - nvme: namespace: nsze=%u lb; ncap=%lu / nuse=%lu; nlbaf=%lu; flbas=%lu\n",
             (uint64_t)ns_ident->namespace.nsze, (uint64_t)ns_ident->namespace.ncap, (uint64_t)ns_ident->namespace.nuse,
             (uint64_t)ns_ident->namespace.nlbaf, (uint64_t)ns_ident->namespace.flbas);
 
@@ -602,7 +598,7 @@ not_supported:
 
         nsctx.lba_size = POW(2, ns_ident->namespace.lbaf[fmt_idx].lbads);
         nsctx.cap = ns_ident->namespace.nsze;
-        kprintf_verbose("nvme: lba_size=%lu, cap=%lu\n", nsctx.lba_size, nsctx.cap);
+        kprintf_verbose("  - nvme: lba_size=%lu, cap=%lu\n", nsctx.lba_size, nsctx.cap);
 
         controller->active_ns.push_back(&controller->active_ns, &nsctx);
 
@@ -665,7 +661,7 @@ not_supported:
         }
     }
 
-    kprintf("NVME_INIT: initialized nvme controller->DEVICE\n");
+    kprintf("  - nvme: initialized nvme controller->DEVICE\n");
 
     partition_disk_device(tempdev);
 }
@@ -674,11 +670,11 @@ not_supported:
 static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lba, uint64_t blocks, void *buffer, uint8_t opc)
 {
     if (opc != NVME_OPC_IO_READ && opc != NVME_OPC_IO_WRITE) {
-        kprintf_verbose("nvme: invalid opcode for read/write");
+        kprintf_verbose("  - nvme: invalid opcode for read/write");
         return 0;
     }
     if (blocks > namespace->mdts || (blocks * namespace->lba_size) > (PAGE_SIZE * namespace->queue.entries)) {
-        kprintf_verbose("nvme: crossed maximum transfer size or max implemented prp_list length");
+        kprintf_verbose("  - nvme: crossed maximum transfer size or max implemented prp_list length");
         return 0;
     }
     
@@ -701,7 +697,6 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
         if ((length >= (PAGE_SIZE * 2) && (buffer_start % PAGE_SIZE) != 0) || (length > (PAGE_SIZE * 2) && (buffer_start % PAGE_SIZE) == 0)) {
             // prp2 prp list pointer (this solution is very suboptimal)
             uintptr_t prp_list = (uintptr_t)page_alloc_temp(psize2order(1 * PAGE_SIZE));
-            vmm_map_single_page(&kernel_pmc, prp_list + hhdm->offset, prp_list, PTE_BIT_EXECUTE_DISABLE | PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
             prp_list += hhdm->offset;
 
             namespace->queue.prp_list_container[namespace->queue.sq.cid_counter % namespace->queue.entries] = prp_list;
@@ -722,13 +717,13 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
     }
 
     if (!nvme_queue_submit_single_cmd(&namespace->queue, &read)) {
-        kprintf_verbose("nvme: critical error occured while attempting to issue read command\n");
+        kprintf_verbose("  - nvme: critical error occured while attempting to issue read command\n");
         return 0;
     }
 
     nvme_ccmd_t cqe = nvme_queue_poll_single_cqe(&namespace->queue);
     if (!NVME_CQE_SUCCESSFUL(cqe)) {
-        kprintf_verbose("nvme: critical error occured during reading from disk\n");
+        kprintf_verbose("  - nvme: critical error occured during reading from disk\n");
         nvme_debug_cqe_unsuccessful(cqe);
         return 0;
     }
@@ -740,7 +735,7 @@ static bool nvme_rw_blocking(struct nvme_ns_ctx *namespace, uint64_t starting_lb
 // (planned) Avoid caching with huge batched workloads and read them asynchronously
 int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
 {
-    spin_lock(&dev->lock);
+    spin_lock_global(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially copy cacheblock into buffer
@@ -772,7 +767,7 @@ int nvme_read(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
-    spin_unlock(&dev->lock);
+    spin_unlock_global(&dev->lock);
     return bytes_read;
 }
 
@@ -780,7 +775,7 @@ fail:
 // (planned) Avoid caching with huge batched workloads and write them asynchronously
 int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
 {
-    spin_lock(&dev->lock);
+    spin_lock_global(&dev->lock);
     struct nvme_ns_ctx *ns = (struct nvme_ns_ctx *)dev->dev_specific;
 
     // for non-full blocks perform a read and partially write buffer into cacheblock
@@ -798,7 +793,7 @@ int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
         bytes_written += remaining;
     }
 
-    for (size_t iter = 0, block = block_lo; block <= block_hi; iter++, block++) {
+    for (size_t block = block_lo; block <= block_hi; block++) {
         size_t i = nvme_prep_write_full_block(ns, block);
         if (i == NVME_IDX_INV) goto fail;
         memcpy(ns->cache_container.cache[i].block, buf + bytes_written, NVME_BLOCK_SIZE);
@@ -813,6 +808,6 @@ int nvme_write(struct device *dev, void *buf, size_t off, size_t count)
     }
 
 fail:
-    spin_unlock(&dev->lock);
+    spin_unlock_global(&dev->lock);
     return bytes_written;
 }

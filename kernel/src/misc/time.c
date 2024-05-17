@@ -55,7 +55,7 @@ static void min_heapify(int idx)
 
 static void timer_insert(struct ktimer_node *node)
 {
-    //spin_lock(&heap_lock); 
+    //spin_lock_global(&heap_lock); 
     if (heap_size == heap_capacity) {
         if (!heap_capacity)
             heap_capacity = 3000;
@@ -73,39 +73,39 @@ static void timer_insert(struct ktimer_node *node)
         swap(idx, get_parent(idx));
         idx = get_parent(idx);
     }
-    //spin_unlock(&heap_lock);
+    //spin_unlock_global(&heap_lock);
 }
 
 // ONLY call inside timer handler
 static struct ktimer_node *timer_peek(void)
 {
-    spin_lock(&heap_lock); 
+    spin_lock_global(&heap_lock); 
 
     if (!heap_size) {
-        spin_unlock(&heap_lock); 
+        spin_unlock_global(&heap_lock); 
         return NULL;
     }
 
     struct ktimer_node *ret = heap_array[0];
 
-    spin_unlock(&heap_lock);
+    spin_unlock_global(&heap_lock);
     return ret;
 }
 
 // ONLY call inside timer handler
 static struct ktimer_node *timer_pop(void)
 {
-    spin_lock(&heap_lock);
+    spin_lock_global(&heap_lock);
 
     if (!heap_size) {
-        spin_unlock(&heap_lock);
+        spin_unlock_global(&heap_lock);
         kpanic(0, NULL, "We should've peeked before popping anyways\n");
         return NULL;
     }
 
     if (heap_size == 1) {
         heap_size--;
-        spin_unlock(&heap_lock);
+        spin_unlock_global(&heap_lock);
         return heap_array[0];
     }
 
@@ -120,7 +120,7 @@ static struct ktimer_node *timer_pop(void)
     }
 
     min_heapify(0);
-    spin_unlock(&heap_lock);
+    spin_unlock_global(&heap_lock);
 
     return root;
 }
@@ -153,7 +153,7 @@ void register_system_timer(struct ktimer_node *tmr, size_t ms)
 {
     // briefly disable interrupts since the timer lock ONLY inside insert()
     // can be taken inside the timer interrupt handler
-    int_status_t s = ints_fetch_disable();
+    int_status_t s = preempt_fetch_disable();
 
     tmr->expiration_time = system_ticks + ms;
     tmr->event.lock.lock = 0;
@@ -162,7 +162,7 @@ void register_system_timer(struct ktimer_node *tmr, size_t ms)
 
     timer_insert(tmr);
 
-    ints_status_restore(s);
+    preempt_restore(s);
 }
 
 
@@ -176,11 +176,7 @@ static void rtc_handler(cpu_ctx_t *regs)
     system_timer_handler();
 }
 
-// rtc: ticking timer
-// lapic timer: preempt timer
-// tsc: high precision timer
-// hpet: -
-// pit: -
+// [TODO] test which timers are available and assign them here, hpet missing
 void time_init(void)
 {
     // use the rtc interrupt for the common system timer.
@@ -204,4 +200,6 @@ void time_init(void)
     rtc_set_periodic(1);
     // rate 6 = 1024hz
     rtc_set_rate(6);
+
+    kprintf("%s initialized time\n", ansi_okay_string);
 }

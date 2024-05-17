@@ -3,7 +3,8 @@
 #include "kheap.h"
 #include "apic.h"
 #include "cpu.h"
-#include "queue.h"
+#include "locking.h"
+#include "macros.h"
 #include "memory.h"
 #include "process.h"
 #include "compiler.h"
@@ -43,9 +44,9 @@ extern uint64_t save_task_context(struct jmpbuf *context);
 
 static inline struct task *runqueue_pop_front(struct scheduler_runqueue *rq)
 {
-    spin_lock(&rq->lock);
+    spin_lock_global(&rq->lock);
     if (!rq->head) {
-        spin_unlock(&rq->lock);
+        spin_unlock_global(&rq->lock);
         return NULL;
     }
 
@@ -59,7 +60,9 @@ static inline struct task *runqueue_pop_front(struct scheduler_runqueue *rq)
 
     ret->rr_next = ret->rr_prev = NULL;
 
-    spin_unlock(&rq->lock);
+    rq->num_tasks--;
+
+    spin_unlock_global(&rq->lock);
 
     return ret;
 }
@@ -67,7 +70,7 @@ static inline struct task *runqueue_pop_front(struct scheduler_runqueue *rq)
 static inline void runqueue_insert_front(struct scheduler_runqueue *rq, struct task *task) {
     if (!task) kpanic(0, NULL, "task == 0");
 
-    spin_lock(&rq->lock);
+    spin_lock_global(&rq->lock);
     if (!rq->head) {
         rq->head = task;
         rq->tail = task;
@@ -79,13 +82,16 @@ static inline void runqueue_insert_front(struct scheduler_runqueue *rq, struct t
         rq->head->rr_prev = task;
         rq->head = task;
     }
-    spin_unlock(&rq->lock);
+
+    rq->num_tasks++;
+
+    spin_unlock_global(&rq->lock);
 }
 
 static inline void runqueue_insert_back(struct scheduler_runqueue *rq, struct task *task) {
     if (!task) kpanic(0, NULL, "task == 0");
 
-    spin_lock(&rq->lock);
+    spin_lock_global(&rq->lock);
     // for some reason, this fails if we check rq->head, and I'm convinced this is
     // not a runqueue_X() implementation issue.
     if (!rq->tail) {
@@ -99,13 +105,16 @@ static inline void runqueue_insert_back(struct scheduler_runqueue *rq, struct ta
         task->rr_prev = rq->tail;
         rq->tail = task;
     }
-    spin_unlock(&rq->lock);
+
+    rq->num_tasks++;
+
+    spin_unlock_global(&rq->lock);
 }
 
 static inline void runqueue_remove(struct scheduler_runqueue *rq, struct task *task) {
     if (!task) kpanic(0, NULL, "task == 0");
 
-    spin_lock(&rq->lock);
+    spin_lock_global(&rq->lock);
     if (task == rq->head) {
         rq->head = task->rr_next;
         if (!rq->head) rq->tail = NULL;
@@ -120,7 +129,10 @@ static inline void runqueue_remove(struct scheduler_runqueue *rq, struct task *t
         task->rr_next->rr_prev = task->rr_prev;
 
     task->rr_next = task->rr_prev = NULL;
-    spin_unlock(&rq->lock);
+
+    rq->num_tasks--;
+
+    spin_unlock_global(&rq->lock);
 }
 
 // atomically get new task id
@@ -130,10 +142,14 @@ static inline uint64_t scheduler_new_tid(void) {
 
 void init_scheduling(void)
 {
+    kprintf_verbose("%s starting kernel task and preemption...\n", ansi_progress_string);
+
     interrupts_register_vector(INT_VEC_SCHEDULER, (uintptr_t)scheduler_preempt);
     kernel_task = scheduler_spawn_task(NULL, &kernel_pmc, SPAWN_TASK_NO_KERNEL_STACK, 64 * KiB);
 
     scheduler_new_kernel_thread(kernel_reaper, NULL, TASK_PRIORITY_CRITICAL);
+
+    kprintf("%s scheduling initialized\n\r", ansi_okay_string);
 }
 
 // caller responsibilites: upon exiting, task is ...
@@ -143,11 +159,11 @@ void init_scheduling(void)
 // flags (SPAWN_TASK_):
 //  - THREAD_GROUP (inherit gid from parent)
 //  - NO_KERNEL_STACK (for kernel threads for example)
-struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, uint8_t flags, uint64_t stacksize)
+struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx_t *pmc, uint8_t flags, uint64_t stacksize)
 {
     struct task *new_task = kcalloc(1, sizeof(struct task));
 
-    spin_lock(&scheduler_big_lock);
+    spin_lock_global(&scheduler_big_lock);
 
     new_task->tid = scheduler_new_tid();
 
@@ -204,7 +220,7 @@ struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, u
 
     new_task->pmc = pmc;
 
-    spin_unlock(&scheduler_big_lock);
+    spin_unlock_global(&scheduler_big_lock);
     return new_task;
 }
 
@@ -220,7 +236,7 @@ void scheduler_cleanup_task(struct task *task)
         kpanic(0, NULL, "we shouldn't be enlinked here");
 
     // unlink from sibling list (maybe disable ints here?)
-    spin_lock(&scheduler_big_lock);
+    spin_lock_global(&scheduler_big_lock);
 
     // kill all children
     struct task *child = task->first_child;
@@ -238,7 +254,7 @@ void scheduler_cleanup_task(struct task *task)
     if (task->sibling_prev)
         task->sibling_prev->sibling_next = task->sibling_next;
 
-    spin_unlock(&scheduler_big_lock);
+    spin_unlock_global(&scheduler_big_lock);
 
     // threads task is the first to be pushed
     page_free(phys2page(task->stacks.data[0]), psize2order(task->stack_size));
@@ -258,7 +274,7 @@ struct task *scheduler_new_kernel_thread(void (*entry)(void *args), void *args, 
 
     struct task *thread = scheduler_spawn_task(kernel_task, &kernel_pmc, SPAWN_TASK_THREAD_GROUP, 64 * KiB);
 
-    spin_lock(&scheduler_big_lock);
+    spin_lock_global(&scheduler_big_lock);
 
     thread->prio = prio;
 
@@ -281,7 +297,7 @@ struct task *scheduler_new_kernel_thread(void (*entry)(void *args), void *args, 
     thread->flags = TASK_FLAGS_KERNEL_THREAD;
     thread->state = TASK_STATE_SLEEPING;
 
-    spin_unlock(&scheduler_big_lock);
+    spin_unlock_global(&scheduler_big_lock);
 
     // enqueue
     scheduler_attempt_wake(thread);
@@ -294,7 +310,7 @@ struct task *scheduler_new_idle_thread()
     struct task *thread = scheduler_spawn_task(kernel_task, &kernel_pmc,
         SPAWN_TASK_NO_KERNEL_STACK | SPAWN_TASK_THREAD_GROUP, 64 * KiB);
 
-    spin_lock(&scheduler_big_lock);
+    spin_lock_global(&scheduler_big_lock);
 
     thread->prio = TASK_PRIORITY_IDLE;
 
@@ -311,7 +327,7 @@ struct task *scheduler_new_idle_thread()
     thread->flags = TASK_FLAGS_KERNEL_THREAD | TASK_FLAGS_KERNEL_IDLE;
     thread->state = TASK_STATE_READY;
 
-    spin_unlock(&scheduler_big_lock);
+    spin_unlock_global(&scheduler_big_lock);
 
     runqueue_remove(&sleep_queue, thread);
 
@@ -322,12 +338,15 @@ struct task *scheduler_new_idle_thread()
 // if we want to also switch task if we put the current task to sleep, call yield 
 void scheduler_put_task2sleep(struct task *task)
 {
-    if (!task) kpanic(0, NULL, "task == 0");
+    if (!task || preempt_fetch()) kpanic(0, NULL, "task == 0");
 
     if (task->state == TASK_STATE_SLEEPING)
         kpanic(0, NULL, "Trying to put sleeping task to sleep");
 
-    runqueue_remove(&prio_queue[task->prio], task);
+    if (task != get_this_cpu()->curr_thread)
+        // make sure to NOT remove from runlist if running task, since we wouldn't be enqueued anyways
+        runqueue_remove(&prio_queue[task->prio], task);
+
     task->state = TASK_STATE_SLEEPING;
     runqueue_insert_back(&sleep_queue, task);
 }
@@ -346,10 +365,10 @@ void scheduler_attempt_wake(struct task *task)
 // switch currently executed task to target. does not take any queuing or related responsibilites.
 comp_noreturn void switch2task(struct task *target)
 {
-    if (target->state != TASK_STATE_READY)
+    if (target->state != TASK_STATE_READY || preempt_fetch())
         kpanic(0, NULL, "cannot switch to non-ready task");
 
-    vmm_set_ctx(target->pmc);
+    mmu_set_ctx(target->pmc);
     get_this_cpu()->tss.rsp0 = (uint64_t)target->kernel_stack;
 
     target->state = TASK_STATE_RUNNING;
@@ -386,7 +405,7 @@ struct task *find_task_to_run(void)
 // this doesnt save context, it just finds a runnable task and switches to it
 void switch_to_next_task(void)
 {
-    if (interrupts_enabled())
+    if (preempt_fetch())
         kpanic(0, NULL, "interrupts should be off");
 
     cpu_local_t *this_cpu = get_this_cpu();
@@ -395,17 +414,17 @@ void switch_to_next_task(void)
 
     if (!next_task)
         next_task = this_cpu->idle_thread;
-
+    
     switch2task(next_task);
 }
 
 void scheduler_preempt(cpu_ctx_t *regs)
 {
     (void)regs;
-    if (interrupts_enabled())
+    if (preempt_fetch())
         kpanic(0, NULL, "this can't happen anyways\n");
 
-    spin_lock(&scheduler_big_lock);
+    spin_lock_global(&scheduler_big_lock);
 
     cpu_local_t *this_cpu = get_this_cpu();
     struct task *curr_task = scheduler_curr_task();
@@ -413,19 +432,19 @@ void scheduler_preempt(cpu_ctx_t *regs)
     get_this_cpu()->curr_thread = NULL;
 
     if (curr_task->state == TASK_STATE_KILLED) {
-        kprintf("task %lu is dead\n", curr_task->tid);
+        kprintf("task %lu ready for reaping\n", curr_task->tid);
 
         runqueue_insert_back(&reap_queue, curr_task);
         kevent_launch(&reap_event);
 
         // don't save context or enqueue anymore
-        spin_unlock(&scheduler_big_lock);
+        spin_unlock_global(&scheduler_big_lock);
         switch_to_next_task();
     }
 
     curr_task->state = TASK_STATE_READY;
 
-    spin_unlock(&scheduler_big_lock);
+    spin_unlock_global(&scheduler_big_lock);
 
     // idle task
     if (curr_task == this_cpu->idle_thread) {
@@ -463,7 +482,7 @@ void scheduler_sleep_for(size_t ms)
 void scheduler_yield(void)
 {
     // don't preempt
-    ints_off();
+    preempt_disable();
 
     struct task *curr = scheduler_curr_task();
 
@@ -485,7 +504,7 @@ void scheduler_yield(void)
 
 void comp_noreturn scheduler_kernel_thread_exit(void)
 {
-    ints_off(); // may be called while ints are on
+    preempt_disable(); // may be called while ints are on
 
     struct task *curr_task = scheduler_curr_task();
 
@@ -504,7 +523,7 @@ void comp_noreturn scheduler_kernel_thread_exit(void)
 // state doesnt get saved so dont take locks you don't release
 void kernel_idle(void)
 {
-    ints_on();
+    preempt_enable();
     for (;;) __asm__ ("hlt");
     unreachable();
 }
@@ -514,7 +533,7 @@ void kernel_reaper(void *arg)
 {
     (void)arg;
 
-    ints_on();
+    preempt_enable();
 
     kevent_t *events[] = {&reap_event};
 
@@ -524,6 +543,7 @@ void kernel_reaper(void *arg)
             kpanic(0, NULL, "something went wrong");
 
         struct task *task_to_kill = runqueue_pop_front(&reap_queue);
+        kprintf("killing task.tid=%d\n", task_to_kill->tid);
         scheduler_cleanup_task(task_to_kill);
     }
 

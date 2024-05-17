@@ -12,7 +12,7 @@ override NASMFLAGS := -F dwarf -g
 override LDFLAGS :=
 
 # c preprocessor flags
-# FIXME remove flanterm include
+# [FIXME] remove flanterm include
 override CPPFLAGS := \
     -I include -I deps/include -I deps/include/flanterm -I deps/include/flanterm/backends \
     -MMD \

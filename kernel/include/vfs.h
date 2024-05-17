@@ -3,15 +3,30 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define VFS_FS_OP_STATUS_OK 0
+#define VFS_FS_OP_STATUS_INVALID_ARGS 1
+
 typedef void *gen_dptr;
 
 struct vfs_fs_ops;
 struct vfs_vnode;
 struct vfs_vnode_ops;
 
-enum vfs_vnode_type {VNON, VREG, VDIR, VBLK, VCHR, VLNK, VSOCK, VBAD};
+enum vfs_vnode_type {
+    VFS_VN_NON,
+    VFS_VN_REG,
+    VFS_VN_DIR,
+    VFS_VN_BLK,
+    VFS_VN_CHR,
+    VFS_VN_LNK,
+    VFS_VN_SCK,
+    VFS_VN_BAD
+};
 
-enum vfs_uio_rw_type {READ, WRITE};
+enum vfs_uio_rw_type {
+    UIO_READ,
+    UIO_WRITE
+};
 
 typedef struct {
     uint64_t fsid[2];
@@ -19,7 +34,8 @@ typedef struct {
 
 // [TODO]
 struct vfs_fid {
-    uint64_t data;
+    uint64_t data_len;
+    uint8_t data[1];
 };
 
 struct vfs_uio {
@@ -58,6 +74,7 @@ struct vfs_vattr {
 };
 
 // a filesystem that's been mounted to our vfs
+// other filesystems can just take this 
 struct vfs_fs {
     struct vfs_fs *vfs_next;            // list of vfs_fs mounted inside this vfs_fs
     struct vfs_fs_ops *vfs_op;
@@ -69,42 +86,52 @@ struct vfs_fs {
 
 // each filesystem needs to implement these
 struct vfs_fs_ops {
-    int (*vfs_mount)(struct vfs_fs *, const char *, gen_dptr);  // this, path, fs_specific
-    int (*vfs_unmount)(struct vfs_fs *);                        // this
-    int (*vfs_root)(struct vfs_fs *, struct vfs_vnode **);      // this, result
-    int (*vfs_statfs)(struct vfs_fs *, struct vfs_statfs *);    // this, result
-    int (*vfs_sync)(struct vfs_fs *);                           // this; write out info
-    int (*vfs_fid)(struct vfs_fs *, struct vfs_vnode *, struct vfs_fid **);     // this, node, result
-    int (*vfs_vget)(struct vfs_fs *, struct vfs_vnode **, struct vfs_fid *);    // this, result, id
+    // mount this to path pathn
+    int (*vfs_mount)(struct vfs_fs *this, const char *pathn, gen_dptr fs_specific);
+    // unmount this
+    int (*vfs_unmount)(struct vfs_fs *this);
+    // return the root vnode for this file system
+    int (*vfs_root)(struct vfs_fs *this, struct vfs_vnode **result);
+    // return file system information
+    int (*vfs_statfs)(struct vfs_fs *this, struct vfs_statfs *result);
+    // schedule writing out all cached data
+    int (*vfs_sync)(struct vfs_fs *this);
+    // return file identifier for vnode at file
+    int (*vfs_fid)(struct vfs_fs *this, struct vfs_vnode *file, struct vfs_fid **result);
+    // return the corresponding vnode for a file identifier
+    int (*vfs_vget)(struct vfs_fs *this, struct vfs_vnode **result, struct vfs_fid *id);
 };
 
 struct vfs_vnode {
     size_t v_flag;
-    size_t v_count;         // refs to this node
-    //u_short v_shlockc; /* # of shared locks */
-    //u_short v_exlockc; /* # of exclusive locks */
+    size_t v_refc;                      // ref count
     struct vfs_fs *v_vfs_mounted_here;  // covering vfs_fs
     struct vfs_vnode_ops *v_op;
-    //union {
-    //    struct socket *v_Socket; /* unix ipc */
-    //    struct stdata *v_Stream; /* stream */
-    //};
-    struct vfs_fs *v_vfsp;  // we are part of vfs_fs
+    struct vfs_fs *v_vfsp;              // we are part of vfs_fs
     enum vfs_vnode_type v_type;
     gen_dptr v_data;
 };
 
 struct vfs_vnode_ops {
-    int (*vn_open)(struct vfs_vnode **, uint64_t, uint8_t *);   // result, flags, credentials (struct)
-    int (*vn_close)(struct vfs_vnode *, uint64_t, uint8_t *);    // this, flags, cred
-    int (*vn_rdwr)(struct vfs_vnode *, struct vfs_uio *, uint8_t, size_t, uint8_t *);    // this, uiop, rw, flags, cread
+    // perform any open protocol on vnode (e.g. a device)
+    int (*vn_open)(struct vfs_vnode *this, uint64_t flags);
+    // if device: called when refcount reaches
+    // if other: called on last close of a file descriptor to this vnode
+    int (*vn_close)(struct vfs_vnode *this, uint64_t flags);
+    // read/write from this vnode, buffer and length are stored in uiop
+    // rw = 1: write, rw = 0: read
+    // flags: [TODO] read synchronously, lock the file...
+    int (*vn_rdwr)(struct vfs_vnode *this, struct vfs_uio *uiop, size_t flags);
     int (*vn_ioctl)();
     int (*vn_select)();
     int (*vn_getattr)();
     int (*vn_setattr)();
     int (*vn_access)();
-    int (*vn_lookup)(struct vfs_vnode *, const char *, struct vfs_vnode **, uint8_t *);  // this, path, result, cred
-    int (*vn_create)(struct vfs_vnode *, const char *, struct vfs_vattr *, uint8_t, uint8_t, struct vfs_vnode **, uint8_t *); // dir, filename, attribs, exclusive, mode, result, cred
+    // look up pathname in directory, return corresponding vnode
+    int (*vn_lookup)(struct vfs_vnode *dir, const char *pathn, struct vfs_vnode **result);
+    // create a new file, filename, in directory, return its vnode
+    int (*vn_create)(struct vfs_vnode *dir, const char *filen,
+        struct vfs_vattr *attribs, struct vfs_vnode **result);
     int (*vn_remove)();
     int (*vn_link)();
     int (*vn_rename)();
@@ -121,6 +148,13 @@ struct vfs_vnode_ops {
     int (*vn_brelse)();
 };
 
-// methods for the kernel vfs subsystem
-int vfs_open();
-struct vfs_vnode *vfs_create(const char *path);
+// kernel interface
+
+//...
+
+// how to we do this properly... how can we keep nodes for the same files?
+struct vfs_vnode *vfs_vnode_alloc(struct vfs_fs *owner, size_t flags,
+    struct vfs_vnode_ops *ops, enum vfs_vnode_type type, gen_dptr data);
+
+
+void vfs_init();

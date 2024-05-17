@@ -96,7 +96,9 @@ WIP:
 
 nvme controller reporting ct=0 on some laptops
 
-sometimes broken stacktrace
+nvme driver should not buffer writes without actually writing
+
+stacktrace array oob
 
 #### Features
 

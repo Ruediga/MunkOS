@@ -40,7 +40,9 @@
 extern "C" {
 #endif
 
-extern const char *kernel_okay_string;
+extern const char *ansi_okay_string;
+extern const char *ansi_failed_string;
+extern const char *ansi_progress_string;
 
 
 int kprintf_verbose(const char *format, ...);

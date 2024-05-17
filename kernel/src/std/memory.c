@@ -4,7 +4,7 @@
 // these are completeky unoptimized, maybe its a nice idea to include
 // hand optimized per arch versions (non sse)?
 
-comp_no_asan void *memcpy(void *dest, const void *src, size_t n) {
+void *memcpy(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
 
@@ -15,7 +15,7 @@ comp_no_asan void *memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-comp_no_asan void *memset(void *s, int c, size_t n) {
+void *memset(void *s, int c, size_t n) {
     uint8_t *p = (uint8_t *)s;
 
     for (size_t i = 0; i < n; i++) {
@@ -25,7 +25,7 @@ comp_no_asan void *memset(void *s, int c, size_t n) {
     return s;
 }
 
-comp_no_asan void *memmove(void *dest, const void *src, size_t n) {
+void *memmove(void *dest, const void *src, size_t n) {
     uint8_t *pdest = (uint8_t *)dest;
     const uint8_t *psrc = (const uint8_t *)src;
 
@@ -42,7 +42,7 @@ comp_no_asan void *memmove(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-comp_no_asan int memcmp(const void *s1, const void *s2, size_t n) {
+int memcmp(const void *s1, const void *s2, size_t n) {
     const uint8_t *p1 = (const uint8_t *)s1;
     const uint8_t *p2 = (const uint8_t *)s2;
 
@@ -53,11 +53,4 @@ comp_no_asan int memcmp(const void *s1, const void *s2, size_t n) {
     }
 
     return 0;
-}
-
-comp_no_asan size_t strlen(const char *str)
-{
-    const char *s;
-    for (s = str; *s; ++s) ;
-    return (s - str);
 }

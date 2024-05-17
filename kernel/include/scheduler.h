@@ -2,7 +2,7 @@
 
 #include "interrupt.h"
 #include "cpu.h"
-#include "vmm.h"
+#include "mmu.h"
 #include "process.h"
 #include "vector.h"
 #include "locking.h"
@@ -22,7 +22,7 @@ struct scheduler_runqueue {
 
 void init_scheduling(void);
 
-struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx *pmc, uint8_t flags, uint64_t stacksize);
+struct task *scheduler_spawn_task(struct task *parent_proc, page_map_ctx_t *pmc, uint8_t flags, uint64_t stacksize);
 struct task *scheduler_new_kernel_thread(void (*entry)(void *args), void *args, enum task_priority prio);
 struct task *scheduler_new_idle_thread();
 
@@ -39,13 +39,13 @@ void switch2task(struct task *target);
 
 static inline cpu_local_t *get_this_cpu(void)
 {
-    if (interrupts_enabled())
+    if (preempt_fetch())
         kpanic(0, NULL, "Can't get_this_cpu() while IF set\n");
     return read_kernel_gs_base();
 }
 
 static inline struct task *scheduler_curr_task(void) {
-    if (interrupts_enabled())
+    if (preempt_fetch())
         kpanic(0, NULL, "Can't scheduler_curr_task() while IF set\n");
     return get_this_cpu()->curr_thread;
 }

@@ -1,6 +1,10 @@
 #include "vfs.h"
-
+#include "interrupt.h"
 #include "kheap.h"
+#include "kprintf.h"
+#include "ramfs.h"
+#include "string.h"
+#include "macros.h"
 
 // system wide vfs root point.
 struct vfs_fs *vfs_sroot = NULL;
@@ -17,13 +21,19 @@ static void vfs_fs_list_remove()
 
 }
 
-// return a pointer to a newly allocated vnode. Used by vfs_fs
-// subnode of owner, flags (), vnode operations, type, specific data pointer for this specific filesystem (needs to be free()able)
-static struct vfs_vnode *vfs_vnode_alloc(struct vfs_fs *owner, size_t flags, struct vfs_vnode_ops *ops, enum vfs_vnode_type type, gen_dptr data)
+// we could / should cache these
+// note: another idea for an api here would be to allow file systems
+// to query a vnode by a given path (which they should have, since vfs_mount() passes
+// the mount path name), which would allow the vfs to
+// - either: return the cached vnode
+// - else: alloc a new vnode and let the filesystem set it up
+// we could also manage invalidating vnodes easier, aswell as removing them
+struct vfs_vnode *vfs_vnode_alloc(struct vfs_fs *owner, size_t flags,
+    struct vfs_vnode_ops *ops, enum vfs_vnode_type type, gen_dptr data)
 {
     struct vfs_vnode *node = kcalloc(1, sizeof(struct vfs_vnode));
     node->v_flag = flags;
-    node->v_count = 0;
+    node->v_refc = 0;
     node->v_vfs_mounted_here = NULL;
     node->v_op = ops;
     node->v_vfsp = owner;
@@ -64,8 +74,58 @@ static void vfs_fs_free(struct vfs_vnode **node)
 
 void vfs_init()
 {
-    // mount some fs to vfs_sroot
-    //vfs_mount_root(ext2fs);
+    kprintf("Initializing vfs\n");
+
+    struct ramdisk *rd = rd_new_ramdisk();
+    struct vfs_fs *ramfs = ramfs_new_fs();
+
+    if (ramfs->vfs_op->vfs_mount(ramfs, "/", rd))
+        kpanic(0, NULL, "thats bad 1\n");
+
+    struct vfs_vnode *sysroot;
+    if (ramfs->vfs_op->vfs_root(ramfs, &sysroot))
+        kpanic(0, NULL, "thats bad 2\n");
+
+    kprintf("sysroot type: %lu\n", (uint64_t)sysroot->v_type);
+
+
+    if (!sysroot->v_op->vn_create)
+        kpanic(0, NULL, "create not implemented\n");
+
+    struct vfs_vattr attribs = {
+        .va_type = VFS_VN_REG,
+    };
+    struct vfs_vnode *new_file = NULL;
+
+    if (sysroot->v_op->vn_create(sysroot, "file", &attribs, &new_file))
+        kpanic(0, NULL, "create failed\n");
+    kprintf("created file \"file\" in root directory of ramdisk\n");
+
+
+    // write a string to the fs
+    struct vfs_uio uio = {
+        .uio = UIO_WRITE,
+        .uio_buf = (uint8_t *)"Hello World",
+        .uio_offset = 0,
+        .uio_resid = 12
+    };
+    new_file->v_op->vn_rdwr(new_file, &uio, 0);
+
+    // read it again
+    uio.uio = UIO_READ;
+    uio.uio_resid = 12;
+    uio.uio_buf = kcalloc(1, 12);
+    new_file->v_op->vn_rdwr(new_file, &uio, 0);
+
+    kprintf("string written and read: <%s>\n", uio.uio_buf);
+
+
+    // try to find the file via lookup
+    struct vfs_vnode *found;
+    if (sysroot->v_op->vn_lookup(sysroot, "file", &found))
+        kpanic(0, NULL, "failed to lookup path\n");
+
+    kfree(sysroot);
 }
 
 // unmounts and deallocs all filesystems in linked list
@@ -75,14 +135,4 @@ static inline void vfs_free_filesystem_list(struct vfs_fs *root)
         root->vfs_op->vfs_unmount(root);
         root = root->vfs_next;
     }
-}
-
-static inline int vfs_mount_root(struct vfs_fs *fs)
-{
-    // if there are any filesystems mounted
-    if (vfs_sroot->vfs_next) {
-        return 0;
-    };
-
-    vfs_sroot = fs;
 }

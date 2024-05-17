@@ -76,10 +76,3 @@ void init_idt(void);
 void interrupts_register_vector(size_t vector, uintptr_t handler);
 void interrupts_erase_vector(size_t vector);
 void load_idt(void);
-
-static inline size_t interrupts_enabled()
-{
-    uint64_t rflags;
-    __asm__ volatile ("pushfq; pop %0" : "=rm" (rflags) : : "memory");
-    return !!(rflags & (1 << 9));
-}

@@ -1,6 +1,6 @@
 #include "stacktrace.h"
 #include "kprintf.h"
-#include "vmm.h"
+#include "mmu.h"
 
 #include <stdbool.h>
 
@@ -9,7 +9,7 @@ __attribute__((weak)) struct stacktrace_symbol_table_entry stacktrace_symtable[]
 };
 
 // takes in a stack frame pointer and tries to resolve the corresponding symbol, return success
-static bool stacktrace_analyze_frame(uintptr_t address, size_t which)
+__attribute__((no_sanitize("undefined"))) static bool stacktrace_analyze_frame(uintptr_t address, size_t which)
 {
     // account for KASLR
     uintptr_t kaslr_off = kernel_address->virtual_base - 0xFFFFFFFF80000000;

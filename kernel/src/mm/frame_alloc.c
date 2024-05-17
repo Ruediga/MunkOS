@@ -20,6 +20,8 @@
 #include "interrupt.h"
 #include "locking.h"
 
+// this is convinient and all, but uses up BRUTAL amounts of sys mem if there
+// are huge memory holes. [TODO] make this memory area based
 struct page *pages;
 size_t pages_count;
 
@@ -85,6 +87,8 @@ inline void allocator_init()
 #ifdef MUNKOS_CONFIG_BUDDY
     buddy_init();
 #endif
+
+    kprintf_verbose("%s initialized phys allocator\n", ansi_okay_string);
 }
 
 inline struct page *page_alloc(size_t order)
@@ -99,6 +103,15 @@ inline struct page *page_alloc(size_t order)
 #ifdef MUNKOS_CONFIG_BUDDY
     return buddy_alloc(order);
 #endif
+}
+
+// since we should implement userspace page sanitization at some point anyways,
+// we could use it here to avoid the memset call...
+inline struct page *page_calloc(size_t order)
+{
+    struct page *out = page_alloc(order);
+    memset((void *)((uintptr_t)page2phys(out) + hhdm->offset), 0, order2size(order) << PAGE_SHIFT);
+    return out;
 }
 
 // for now use this temp function
@@ -131,10 +144,10 @@ void page_free_temp(void *address, size_t size)
 void phys_stat_memory(struct phys_mem_stat *stat)
 {
 #ifdef MUNKOS_CONFIG_BITMAP
-    spin_lock(&bitmap_lock);
+    spin_lock_global(&bitmap_lock);
 #endif
 #ifdef MUNKOS_CONFIG_BUDDY
-    spin_lock(&buddy_allocator.this_lock);
+    spin_lock_global(&buddy_allocator.this_lock);
 #endif
 
     stat->free_pages = frame_allocator_free;
@@ -142,10 +155,10 @@ void phys_stat_memory(struct phys_mem_stat *stat)
     stat->usable_pages = frame_allocator_usable;
 
 #ifdef MUNKOS_CONFIG_BITMAP
-    spin_unlock(&bitmap_lock);
+    spin_unlock_global(&bitmap_lock);
 #endif
 #ifdef MUNKOS_CONFIG_BUDDY
-    spin_unlock(&buddy_allocator.this_lock);
+    spin_unlock_global(&buddy_allocator.this_lock);
 #endif
 }
 
@@ -175,13 +188,13 @@ static void bitmap_init(void)
         }
     }
 
-    kprintf("  - pmm: total memory: %luMiB, of which %luMiB usable\n",
+    kprintf("  - bitmap: total memory: %luMiB, of which %luMiB usable\n",
         (frame_allocator_total * PAGE_SIZE) / MiB, (frame_allocator_usable * PAGE_SIZE) / MiB);
 
     // for no real reason other than why not don't allow running the OS with
     // less than 64 MiB of usable memory
     if ((frame_allocator_usable * PAGE_SIZE) / MiB < 64) {
-        kprintf("stop being cheap and run this with >= 64 MiB of ram\n\r");
+        kprintf("  - bitmap: stop being cheap and run this with >= 64 MiB of ram\n\r");
     }
 
     early_mem_exit();
@@ -214,7 +227,7 @@ static void *_bitmap_search_free(size_t *idx, size_t *pages_found, size_t count)
 
 void *bitmap_page_alloc(size_t count)
 {
-    spin_lock(&bitmap_lock);
+    spin_lock_global(&bitmap_lock);
     size_t idx = bitmap_last_index, pages_found = 0;
     uint8_t can_retry = 1;
 
@@ -230,7 +243,7 @@ retry:
         while (idx < end) {
             void *ptr = _bitmap_search_free(&idx, &pages_found, count);
             if (ptr != NULL) {
-                spin_unlock(&bitmap_lock);
+                spin_unlock_global(&bitmap_lock);
                 return ptr;
             }
         }
@@ -245,17 +258,17 @@ retry:
     }
 
     // [DBG]
-    kprintf("PMM::NO_PAGES_FOUND Free pages: %lu; Requested pages: %lu\n",
+    kprintf("  - bitmap: free pages: %lu; requested pages: %lu\n",
         frame_allocator_free, count);
 
-    spin_unlock(&bitmap_lock);
+    spin_unlock_global(&bitmap_lock);
     return NULL;
 }
 
 // ptr needs to be the original pointer memory was allocated from
 void bitmap_page_free(void *ptr, size_t count)
 {
-    spin_lock(&bitmap_lock);
+    spin_lock_global(&bitmap_lock);
     size_t starting_page = (uint64_t)ptr / PAGE_SIZE;
     for (size_t i = 0; i < count; i++) {
         BITMAP_UNSET_BIT(bitmap, starting_page + i);
@@ -263,7 +276,7 @@ void bitmap_page_free(void *ptr, size_t count)
     frame_allocator_free += count;
     // [DBG]
     //printf("Freed %lu pages at (pa) 0x%016lX\n", count, (uint64_t)ptr);
-    spin_unlock(&bitmap_lock);
+    spin_unlock_global(&bitmap_lock);
 }
 #endif // MUNKOS_CONFIG_BITMAP
 
@@ -398,7 +411,7 @@ void buddy_print(void) {
     }
 }
 
-comp_no_asan void buddy_init()
+void buddy_init()
 {
     // find space for bitmap
     for (size_t order = 0; order <= BUDDY_HIGH_ORDER; order++) {
@@ -413,14 +426,12 @@ comp_no_asan void buddy_init()
 
     early_mem_statistics(&frame_allocator_usable, &frame_allocator_free);
     size_t allocated = early_mem_exit();
+    early_mem_dbg_print();
     // dont forget to update stats
     early_mem_statistics(&frame_allocator_usable, &frame_allocator_free);
-    early_mem_dbg_print();
-    kprintf("lost %lu pages (~%lu.%lu%%)\n", allocated / PAGE_SIZE, ((allocated / PAGE_SIZE) * 100)
-        / frame_allocator_total, (allocated / frame_allocator_total) % 100);
-    
-    DBGPRNT(kprintf("Initializing buddy allocator with %lu pages\n", frame_allocator_total));
-    
+    kprintf("  - buddy: %lu pages (~%lu.%lu%%) used\n", allocated / PAGE_SIZE,
+        ((allocated / PAGE_SIZE) * 100) / frame_allocator_total, (allocated / frame_allocator_total) % 100);
+
     // find out which pages are actually free to use. Mark the entries in the bitmap,
     // and split the memory up in as big blocks as possible. Add these to the freelists.
     for (size_t i = 0; i < memmap_entry_count; i++) {
@@ -434,8 +445,6 @@ comp_no_asan void buddy_init()
             struct page *start = phys2page(current);
             _list_link(start, &buddy_allocator.orders[buddy].list);
 
-            DBGPRNT(kprintf("i %lu (size %lu) freelist entry (order %lu) (buddy %lu)\n",
-                   page2idx(start), order2size(buddy), buddy, page2idx(get_buddy(start, buddy))));
             current += order2size(buddy) * PAGE_SIZE;
         }
     }
@@ -459,13 +468,12 @@ struct page *buddy_alloc(size_t order) {
     size_t cpy_order = order;
 
     if (order > BUDDY_HIGH_ORDER) {
-        kprintf("buddy allocations of order > %lu are not supported!\n", BUDDY_HIGH_ORDER);
-        buddy_print();
+        kprintf("  - buddy: allocations of order > %lu are not supported!\n", BUDDY_HIGH_ORDER);
         return NULL;
     }
 
     // no need to lock before the check
-    spin_lock(&buddy_allocator.this_lock);
+    spin_lock_global(&buddy_allocator.this_lock);
 
     struct page *pg;
 
@@ -477,26 +485,19 @@ struct page *buddy_alloc(size_t order) {
         order++;
     }
     // no order to split from found
-    kprintf("no page to split from\n");
-    spin_unlock(&buddy_allocator.this_lock);
+    kprintf("  - buddy: no page to split from\n");
+    spin_unlock_global(&buddy_allocator.this_lock);
     return NULL;
 
 found_buddy:
-    DBGPRNT(kprintf("found first splittable/returnable entry at order %lu (page = %lu)\n", order, page2idx(pg)));
-
     // split buddy: add second buddy to free list, flip its bit
     order_flip_at(page2idx(pg), order);
-    DBGPRNT(kprintf("flipped order %lu block at %lu (status = %u)\n", order, page2idx(pg),
-        order_status_at(page2idx(pg), order)));
 
     while (order > cpy_order) {
         order--;
 
-        DBGPRNT(kprintf("splitting original: %lu, buddy = %lu\n", page2idx(pg), page2idx(get_buddy(pg, order))));
-
         struct page *buddy = get_buddy(pg, order);
         if (order_status_at(page2idx(buddy), order)) {
-            kprintf("total buddy allocations: %lu\n", buddy_allocator.allocation_count);
             kpanic(0, NULL, "trying to split into invalid buddy entry\n");
         }
 
@@ -510,15 +511,14 @@ found_buddy:
     frame_allocator_free -= order2size(cpy_order);
     buddy_allocator.allocation_count++;
 
-    DBGPRNT(kprintf("returning page %lu\n", page2idx(pg)));
-    spin_unlock(&buddy_allocator.this_lock);
+    spin_unlock_global(&buddy_allocator.this_lock);
     return pg;
 }
 
 // free 2 ^ n pages. performs sanity checks.
 // double free check?
 void buddy_free(struct page *page, size_t order) {
-    spin_lock(&buddy_allocator.this_lock);
+    spin_lock_global(&buddy_allocator.this_lock);
 
     size_t cpy_order = order;
 
@@ -527,7 +527,6 @@ void buddy_free(struct page *page, size_t order) {
         kpanic(0, NULL, "trying to free page %lu of order %lu, when alignment order is %lu\n",
             page2idx(page), order, get_alignment_order(page2idx(page) * PAGE_SIZE));
     }
-    DBGPRNT(kprintf("attempting to free page %lu, order %lu\n", page2idx(page), order));
 
     // try to merge up to highest possible order: while bitmap entry for this buddy == 0,
     // delete buddy from it's free list, and go up one order.
@@ -537,8 +536,6 @@ void buddy_free(struct page *page, size_t order) {
         order_flip_at(page2idx(page), order);
 
         if (order_status_at(page2idx(page), order)) {
-            DBGPRNT(kprintf("status: page %lu not ready to merge with %lu\n",
-                page2idx(page), page2idx(get_buddy(page, order))));
 
             // not ready to merge
             break;
@@ -546,10 +543,7 @@ void buddy_free(struct page *page, size_t order) {
 
         // unlink the buddy to merge with, and flip it's bit (1 to zero)
         struct page *buddy = get_buddy(page, order);
-        DBGPRNT(kprintf("trying to unlink buddy %lu\n", page2idx(buddy)));
         _list_unlink(buddy, &buddy_allocator.orders[order].list);
-        DBGPRNT(kprintf("status: page %lu merged with %lu\n",
-            page2idx(page), page2idx(get_buddy(page, order))));
 
         // the buddies have effectively been merged, try to jump up one order,
         // which requires page to hold the struct for the first one of the two buddies
@@ -564,7 +558,6 @@ void buddy_free(struct page *page, size_t order) {
     frame_allocator_free += order2size(cpy_order);
     buddy_allocator.deallocation_count++;
 
-    DBGPRNT(kprintf("page %lu, order %lu freed\n", page2idx(page), order));
-    spin_unlock(&buddy_allocator.this_lock);
+    spin_unlock_global(&buddy_allocator.this_lock);
 }
 #endif // MUNKOS_CONFIG_BUDDY

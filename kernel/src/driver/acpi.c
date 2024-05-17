@@ -1,7 +1,7 @@
 #include "kprintf.h"
-#include "memory.h"
+#include "macros.h"
 #include "frame_alloc.h"
-#include "vmm.h"
+#include "mmu.h"
 #include "_acpi.h"
 #include "interrupt.h"
 
@@ -43,13 +43,15 @@ static bool validate_table(volatile struct acpi_sdt_header *table_header)
 // [FIXME] fix this shitty stuff with the mapping
 void parse_acpi(void)
 {
+    kprintf_verbose("%s parsing acpi tables...\n", ansi_progress_string);
+
     if (rsdp_request.response == NULL || rsdp_request.response->address == NULL) {
         kpanic(0, NULL, "ACPI is not supported\n");
     }
 
     rsdp_ptr = rsdp_request.response->address;
-    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdp_ptr, PAGE_SIZE),
-        ALIGN_DOWN(((uintptr_t)rsdp_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    mmu_map_single_page_4k(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdp_ptr, PAGE_SIZE),
+        ALIGN_DOWN(((uintptr_t)rsdp_ptr - hhdm->offset), PAGE_SIZE), PM_COMMON_PRESENT | PM_COMMON_WRITE);
 
     // use xsdt for newer revisions
     xsdt_present = (rsdp_ptr->revision >= 2) ? true : false;
@@ -59,8 +61,8 @@ void parse_acpi(void)
     if (rsdt_ptr == NULL) {
         kpanic(0, NULL, "ACPI is not supported\n");
     }
-    vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
-        ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+    mmu_map_single_page_4k(&kernel_pmc, ALIGN_DOWN((uintptr_t)rsdt_ptr, PAGE_SIZE),
+        ALIGN_DOWN(((uintptr_t)rsdt_ptr - hhdm->offset), PAGE_SIZE), PM_COMMON_PRESENT | PM_COMMON_WRITE);
 
     // temp solution [FIXME] to map acpi tables
     size_t entry_count = (rsdt_ptr->header.length - sizeof(struct acpi_sdt_header)) / (xsdt_present ? 8 : 4);
@@ -69,7 +71,7 @@ void parse_acpi(void)
 
         if (xsdt_present) {
             uint32_t *xsdt_table = (uint32_t *)((uintptr_t)rsdt_ptr + sizeof(struct acpi_sdt_header));
-            // this may be unnecessary, but since the old alignment is 32 bits,
+            // this may be unnecessary for x86, but since the old alignment is 32 bits,
             // and the new xsdt is 64 bits, this results in an unaligned read otherwise.
             size_t head_lo = xsdt_table[i * 2];
             size_t head_hi = xsdt_table[i * 2 + 1];
@@ -79,8 +81,8 @@ void parse_acpi(void)
             head = (struct acpi_sdt_header *)(rsdt_table[i] + hhdm->offset);
         }
 
-        vmm_map_single_page(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
-            ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PTE_BIT_PRESENT | PTE_BIT_READ_WRITE);
+        mmu_map_single_page_4k(&kernel_pmc, ALIGN_DOWN((uintptr_t)head, PAGE_SIZE),
+            ALIGN_DOWN(((uintptr_t)head - hhdm->offset), PAGE_SIZE), PM_COMMON_PRESENT | PM_COMMON_WRITE);
     }
 
     if (!(fadt_ptr = get_sdt("FACP")) || !validate_table(&fadt_ptr->header)) {
@@ -96,6 +98,7 @@ void parse_acpi(void)
 
     parse_madt(madt_ptr);
 
+    kprintf("%s parsed necessary acpi tables\n", ansi_okay_string);
 }
 
 void *get_sdt(const char signature[static 4])

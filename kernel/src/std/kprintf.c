@@ -4,12 +4,28 @@
 #include "locking.h"
 #include "compiler.h"
 
-const char *kernel_okay_string = "\033[1;30m[\033[0;32mOkay\033[1;30m]\033[0m";
+/*Color Name 	Foreground Color Code 	Background Color Code
+Black 	    30 	                    40
+Red 	    31 	                    41
+Green 	    32 	                    42
+Yellow 	    33 	                    43
+Blue 	    34 	                    44
+Magenta 	35 	                    45
+Cyan 	    36 	                    46
+White 	    37 	                    47
+Default 	39 	                    49
+Reset 	    0 	                    0
+
+\x1b[1;31m  # Set style to bold, red foreground.*/
+
+const char *ansi_okay_string = "\033[1;30m[\033[32m OKAY \033[1;30m]\033[0m";
+const char *ansi_failed_string = "\033[1;30m[\033[31mFAILED\033[1;30m]\033[0m";
+const char *ansi_progress_string = "\033[1;30m[\033[32m. . .\033[1;30m]\033[0m";
 
 #include "flanterm/flanterm.h"
 extern struct flanterm_context *ft_ctx;
 k_spinlock_t kprintf_lock;
-comp_no_asan void _putchar(char c)
+void _putchar(char c)
 {
     flanterm_write(ft_ctx, &c, 1);
     // tty1
@@ -145,7 +161,7 @@ typedef struct
 } out_fct_wrap_type;
 
 // internal buffer output
-comp_no_asan static inline void _out_buffer(char character, void *buffer, size_t idx, size_t maxlen)
+static inline void _out_buffer(char character, void *buffer, size_t idx, size_t maxlen)
 {
     if (idx < maxlen)
     {
@@ -154,7 +170,7 @@ comp_no_asan static inline void _out_buffer(char character, void *buffer, size_t
 }
 
 // internal null output
-comp_no_asan static inline void _out_null(char character, void *buffer, size_t idx, size_t maxlen)
+static inline void _out_null(char character, void *buffer, size_t idx, size_t maxlen)
 {
     (void)character;
     (void)buffer;
@@ -163,7 +179,7 @@ comp_no_asan static inline void _out_null(char character, void *buffer, size_t i
 }
 
 // internal _putchar wrapper
-comp_no_asan static inline void _out_char(char character, void *buffer, size_t idx, size_t maxlen)
+static inline void _out_char(char character, void *buffer, size_t idx, size_t maxlen)
 {
     (void)buffer;
     (void)idx;
@@ -175,7 +191,7 @@ comp_no_asan static inline void _out_char(char character, void *buffer, size_t i
 }
 
 // internal output function wrapper
-comp_no_asan static inline void _out_fct(char character, void *buffer, size_t idx, size_t maxlen)
+static inline void _out_fct(char character, void *buffer, size_t idx, size_t maxlen)
 {
     (void)idx;
     (void)maxlen;
@@ -188,7 +204,7 @@ comp_no_asan static inline void _out_fct(char character, void *buffer, size_t id
 
 // internal secure strlen
 // \return The length of the string (excluding the terminating 0) limited by 'maxsize'
-comp_no_asan static inline unsigned int _strnlen_s(const char *str, size_t maxsize)
+static inline unsigned int _strnlen_s(const char *str, size_t maxsize)
 {
     const char *s;
     for (s = str; *s && maxsize--; ++s)
@@ -198,13 +214,13 @@ comp_no_asan static inline unsigned int _strnlen_s(const char *str, size_t maxsi
 
 // internal test if char is a digit (0-9)
 // \return true if char is a digit
-comp_no_asan static inline bool _is_digit(char ch)
+static inline bool _is_digit(char ch)
 {
     return (ch >= '0') && (ch <= '9');
 }
 
 // internal ASCII string to unsigned int conversion
-comp_no_asan static unsigned int _atoi(const char **str)
+static unsigned int _atoi(const char **str)
 {
     unsigned int i = 0U;
     while (_is_digit(**str))
@@ -215,7 +231,7 @@ comp_no_asan static unsigned int _atoi(const char **str)
 }
 
 // output the specified string in reverse, taking care of any zero-padding
-comp_no_asan static size_t _out_rev(out_fct_type out, char *buffer, size_t idx, size_t maxlen, const char *buf, size_t len, unsigned int width, unsigned int flags)
+static size_t _out_rev(out_fct_type out, char *buffer, size_t idx, size_t maxlen, const char *buf, size_t len, unsigned int width, unsigned int flags)
 {
     const size_t start_idx = idx;
 
@@ -247,7 +263,7 @@ comp_no_asan static size_t _out_rev(out_fct_type out, char *buffer, size_t idx, 
 }
 
 // internal itoa format
-comp_no_asan static size_t _ntoa_format(out_fct_type out, char *buffer, size_t idx, size_t maxlen, char *buf, size_t len, bool negative, unsigned int base, unsigned int prec, unsigned int width, unsigned int flags)
+static size_t _ntoa_format(out_fct_type out, char *buffer, size_t idx, size_t maxlen, char *buf, size_t len, bool negative, unsigned int base, unsigned int prec, unsigned int width, unsigned int flags)
 {
     // pad leading zeros
     if (!(flags & FLAGS_LEFT))
@@ -315,7 +331,7 @@ comp_no_asan static size_t _ntoa_format(out_fct_type out, char *buffer, size_t i
 }
 
 // internal itoa for 'long' type
-comp_no_asan static size_t _ntoa_long(out_fct_type out, char *buffer, size_t idx, size_t maxlen, unsigned long value, bool negative, unsigned long base, unsigned int prec, unsigned int width, unsigned int flags)
+static size_t _ntoa_long(out_fct_type out, char *buffer, size_t idx, size_t maxlen, unsigned long value, bool negative, unsigned long base, unsigned int prec, unsigned int width, unsigned int flags)
 {
     char buf[PRINTF_NTOA_BUFFER_SIZE];
     size_t len = 0U;
@@ -342,7 +358,7 @@ comp_no_asan static size_t _ntoa_long(out_fct_type out, char *buffer, size_t idx
 
 // internal itoa for 'long long' type
 #if defined(PRINTF_SUPPORT_LONG_LONG)
-comp_no_asan static size_t _ntoa_long_long(out_fct_type out, char *buffer, size_t idx, size_t maxlen, unsigned long long value, bool negative, unsigned long long base, unsigned int prec, unsigned int width, unsigned int flags)
+static size_t _ntoa_long_long(out_fct_type out, char *buffer, size_t idx, size_t maxlen, unsigned long long value, bool negative, unsigned long long base, unsigned int prec, unsigned int width, unsigned int flags)
 {
     char buf[PRINTF_NTOA_BUFFER_SIZE];
     size_t len = 0U;
@@ -376,7 +392,7 @@ static size_t _etoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, d
 #endif
 
 // internal ftoa for fixed decimal floating point
-comp_no_asan static size_t _ftoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, double value, unsigned int prec, unsigned int width, unsigned int flags)
+static size_t _ftoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, double value, unsigned int prec, unsigned int width, unsigned int flags)
 {
     char buf[PRINTF_FTOA_BUFFER_SIZE];
     size_t len = 0U;
@@ -527,7 +543,7 @@ comp_no_asan static size_t _ftoa(out_fct_type out, char *buffer, size_t idx, siz
 
 #if defined(PRINTF_SUPPORT_EXPONENTIAL)
 // internal ftoa variant for exponential floating-point type, contributed by Martijn Jasperse <m.jasperse@gmail.com>
-comp_no_asan static size_t _etoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, double value, unsigned int prec, unsigned int width, unsigned int flags)
+static size_t _etoa(out_fct_type out, char *buffer, size_t idx, size_t maxlen, double value, unsigned int prec, unsigned int width, unsigned int flags)
 {
     // check for NaN and special values
     if ((value != value) || (value > DBL_MAX) || (value < -DBL_MAX))
@@ -655,9 +671,9 @@ comp_no_asan static size_t _etoa(out_fct_type out, char *buffer, size_t idx, siz
 #endif // PRINTF_SUPPORT_FLOAT
 
 // internal vsnprintf
-comp_no_asan static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen, const char *format, va_list va)
+static int _vsnprintf(out_fct_type out, char *buffer, const size_t maxlen, const char *format, va_list va)
 {
-    spin_lock(&kprintf_lock);
+    spin_lock_global(&kprintf_lock);
     unsigned int flags, width, precision, n;
     size_t idx = 0U;
 
@@ -1008,7 +1024,7 @@ comp_no_asan static int _vsnprintf(out_fct_type out, char *buffer, const size_t 
     // termination
     out((char)0, buffer, idx < maxlen ? idx : maxlen - 1U, maxlen);
 
-    spin_unlock(&kprintf_lock);
+    spin_unlock_global(&kprintf_lock);
 
     // return written chars without terminating \0
     return (int)idx;
@@ -1016,7 +1032,7 @@ comp_no_asan static int _vsnprintf(out_fct_type out, char *buffer, const size_t 
 
 ///////////////////////////////////////////////////////////////////////////////
 
-comp_no_asan int printf_(const char *format, ...)
+int printf_(const char *format, ...)
 {
     va_list va;
     va_start(va, format);
@@ -1026,7 +1042,7 @@ comp_no_asan int printf_(const char *format, ...)
     return ret;
 }
 
-comp_no_asan int sprintf_(char *buffer, const char *format, ...)
+int sprintf_(char *buffer, const char *format, ...)
 {
     va_list va;
     va_start(va, format);
@@ -1035,7 +1051,7 @@ comp_no_asan int sprintf_(char *buffer, const char *format, ...)
     return ret;
 }
 
-comp_no_asan int snprintf_(char *buffer, size_t count, const char *format, ...)
+int snprintf_(char *buffer, size_t count, const char *format, ...)
 {
     va_list va;
     va_start(va, format);
@@ -1044,18 +1060,18 @@ comp_no_asan int snprintf_(char *buffer, size_t count, const char *format, ...)
     return ret;
 }
 
-comp_no_asan int vprintf_(const char *format, va_list va)
+int vprintf_(const char *format, va_list va)
 {
     char buffer[1];
     return _vsnprintf(_out_char, buffer, (size_t)-1, format, va);
 }
 
-comp_no_asan int vsnprintf_(char *buffer, size_t count, const char *format, va_list va)
+int vsnprintf_(char *buffer, size_t count, const char *format, va_list va)
 {
     return _vsnprintf(_out_buffer, buffer, count, format, va);
 }
 
-comp_no_asan int fctprintf(void (*out)(char character, void *arg), void *arg, const char *format, ...)
+int fctprintf(void (*out)(char character, void *arg), void *arg, const char *format, ...)
 {
     va_list va;
     va_start(va, format);
@@ -1066,7 +1082,7 @@ comp_no_asan int fctprintf(void (*out)(char character, void *arg), void *arg, co
 }
 
 #ifdef MUNKOS_VERBOSE_BUILD
-comp_no_asan int kprintf_verbose(const char *format, ...)
+int kprintf_verbose(const char *format, ...)
 {
     va_list var_args;
     va_start(var_args, format);
@@ -1078,7 +1094,7 @@ comp_no_asan int kprintf_verbose(const char *format, ...)
     return ret;
 }
 #else
-comp_no_asan int kprintf_verbose(const char *format, ...)
+int kprintf_verbose(const char *format, ...)
 {
     (void)format;
 

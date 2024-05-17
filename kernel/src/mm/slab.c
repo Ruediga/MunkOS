@@ -4,8 +4,8 @@
 #include "kheap.h"
 #include "kprintf.h"
 #include "interrupt.h"
+#include "macros.h"
 #include "memory.h"
-#include "vmm.h"
 #include "compiler.h"
 #include "locking.h"
 
@@ -181,15 +181,18 @@ static void init_slab_cache(struct slab_cache *c, size_t alloc_size, const char 
 
 void slab_init()
 {
+    kprintf_verbose("%s preparing kernel heap...\n", ansi_progress_string);
+
     for (int i = 0; i < KMALLOC_ALLOC_SIZES; i++) {
         init_slab_cache(&kmalloc_generic_caches[i], 1 << (i + 4), "some cache");
     }
 
     for (int i = 0; i < KMALLOC_ALLOC_SIZES; i++) {
-        kprintf("slab_cache %d \"%s\" (size %hu) initialized\n", i, kmalloc_generic_caches[i].name, kmalloc_generic_caches[i].obj_size);
+        kprintf_verbose("  - slab: slab_cache %d \"%s\" (size %hu) initialized\n", i, kmalloc_generic_caches[i].name, kmalloc_generic_caches[i].obj_size);
     }
 
     slab_initialized = 1;
+    kprintf("%s slab allocator initialized\n", ansi_okay_string);
 }
 
 // allocate a new slab from the buddy allocator for a given slab_cache.
@@ -258,7 +261,8 @@ static void _attempt_free_full(struct slab_cache *c)
 static void *cache_alloc(struct slab_cache *c)
 {
     // lock everything for now
-    spin_lock(&c->lock);
+    int_status_t old = preempt_fetch_disable();
+    spin_lock_global(&c->lock);
 
     // prefer to allocate from partial slabs. if there aren't any,
     // allocate from full slabs. if there aren't any, allocate new full
@@ -292,7 +296,8 @@ static void *cache_alloc(struct slab_cache *c)
             c->empty_slab_count++;
         }
 
-        spin_unlock(&c->lock);
+        spin_unlock_global(&c->lock);
+        preempt_restore(old);
         return ret;
     }
 
@@ -314,7 +319,8 @@ got_full:
         full->used_objs++;
         full->this_cache->total_objs_allocated++;
 
-        spin_unlock(&c->lock);
+        spin_unlock_global(&c->lock);
+        preempt_restore(old);
         return ret;
     }
 
@@ -458,7 +464,8 @@ void kfree(void *addr)
     }
 #endif
 
-    spin_lock(&s->this_cache->lock);
+    int_status_t old = preempt_fetch_disable();
+    spin_lock_global(&s->this_cache->lock);
 
     // add object to slabs freelist
     *(void **)addr = s->freelist;
@@ -484,7 +491,8 @@ void kfree(void *addr)
     s->used_objs--;
     c->total_objs_allocated--;
 
-    spin_unlock(&s->this_cache->lock);
+    spin_unlock_global(&s->this_cache->lock);
+    preempt_restore(old);
 }
 
 void *krealloc(void *addr, size_t size)
@@ -523,10 +531,10 @@ void *kcalloc(size_t entries, size_t size)
 k_spinlock_t templock;
 void slab_dbg_print(void)
 {
-    spin_lock(&templock);
+    spin_lock_global(&templock);
     for (int i = 0; i < KMALLOC_ALLOC_SIZES; i++) {
         struct slab_cache *c = &kmalloc_generic_caches[i];
-        spin_lock(&c->lock);
+        spin_lock_global(&c->lock);
 
         kprintf("%s, size=%d <obj_per_slab=%lu> <pages_per_slab=%lu>\n"
                "<total_objs=%lu> <total_objs_allocated=%lu> <full=%lu/partials=%lu/empty=%lu>\n",
@@ -563,7 +571,7 @@ void slab_dbg_print(void)
             j++;
         }
 
-        spin_unlock(&c->lock);
+        spin_unlock_global(&c->lock);
     }
-    spin_unlock(&templock);
+    spin_unlock_global(&templock);
 }

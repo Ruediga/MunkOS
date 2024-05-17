@@ -24,7 +24,7 @@ enum asan_violation_type
 const uint8_t asan_poison = 0b10101010; 
 const uint8_t asan_stack_poison = 0b01010101;
 
-comp_no_asan bool memcmpagainst(const void *blk1, int against, size_t count) {
+bool memcmpagainst(const void *blk1, int against, size_t count) {
     const unsigned char *p = blk1;
     unsigned char value = (unsigned char)against;
 
@@ -37,13 +37,9 @@ comp_no_asan bool memcmpagainst(const void *blk1, int against, size_t count) {
     return true;
 }
 
-extern int inti;
-
-comp_no_asan void asan_report(void *addr, size_t size, uintptr_t rip,
+void asan_report(void *addr, size_t size, uintptr_t rip,
     bool rw, enum asan_violation_type type, bool abort)
-{
-    if (!inti) return;
-    
+{    
     if (type == ASAN_VIOLATION_TYPE_INVALID) {
         kprintf("asan: invalid type\n");
         return;
@@ -61,7 +57,7 @@ comp_no_asan void asan_report(void *addr, size_t size, uintptr_t rip,
         kpanic(0, NULL, "^ fatal asan report");
 }
 
-comp_no_asan bool is_allocated(uintptr_t base, size_t length)
+bool is_allocated(uintptr_t base, size_t length)
 {
     (void)base;
     (void)length;
@@ -73,7 +69,7 @@ comp_no_asan bool is_allocated(uintptr_t base, size_t length)
     return true;
 }
 
-comp_no_asan void asan_shadow_space_access(void *addr, size_t size, uintptr_t rip,
+void asan_shadow_space_access(void *addr, size_t size, uintptr_t rip,
     bool rw, bool abort)
 {
     return;
@@ -99,7 +95,7 @@ sc_2:
         asan_report(addr, size, rip, rw, ASAN_VIOLATION_TYPE_SHADOW_SPACE_ACCESS, abort);
 }
 
-comp_no_asan void asan_stack_shadow_space_access(void *addr, size_t size, uintptr_t rip,
+void asan_stack_shadow_space_access(void *addr, size_t size, uintptr_t rip,
     bool rw, bool abort)
 {
     bool is_poisoned = false;
@@ -124,7 +120,7 @@ sc_2:
         asan_report(addr, size, rip, rw, ASAN_VIOLATION_TYPE_SHADOW_SPACE_ACCESS, abort);
 }
 
-comp_no_asan void asan_verify(void *addr, size_t size, uintptr_t rip, bool rw, bool abort)
+void asan_verify(void *addr, size_t size, uintptr_t rip, bool rw, bool abort)
 {
     bool crosses_bound = CROSSES_PAGE_BOUNDARY((uintptr_t)addr, (uintptr_t)size);
 
@@ -145,22 +141,22 @@ comp_no_asan void asan_verify(void *addr, size_t size, uintptr_t rip, bool rw, b
 #endif
 
 #define ASAN_LOAD_NOABORT(size)\
-comp_no_asan void __asan_load##size##_noabort(void *addr)\
+void __asan_load##size##_noabort(void *addr)\
 {\
 	asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), false, false);\
 }
 #define ASAN_LOAD_ABORT(size)\
-comp_no_asan void __asan_load##size(void *addr)\
+void __asan_load##size(void *addr)\
 {\
 	asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), false, true);\
 }
 #define ASAN_STORE_NOABORT(size)\
-comp_no_asan void __asan_store##size##_noabort(void *addr)\
+void __asan_store##size##_noabort(void *addr)\
 {\
 	asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), true, false);\
 }
 #define ASAN_STORE_ABORT(size)\
-comp_no_asan void __asan_store##size(void *addr)\
+void __asan_store##size(void *addr)\
 {\
 	asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), true, true);\
 }
@@ -187,22 +183,22 @@ ASAN_STORE_NOABORT(4)
 ASAN_STORE_NOABORT(8)
 ASAN_STORE_NOABORT(16)
 
-comp_no_asan void __asan_load_n(void *addr, size_t size)
+void __asan_load_n(void *addr, size_t size)
 {
     asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), false, true);
 }
-comp_no_asan void __asan_store_n(void *addr, size_t size)
+void __asan_store_n(void *addr, size_t size)
 {
     asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), true, true); 
 }
-comp_no_asan void __asan_loadN_noabort(void *addr, size_t size)
+void __asan_loadN_noabort(void *addr, size_t size)
 {
     asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), false, false);
 }
-comp_no_asan void __asan_storeN_noabort(void *addr, size_t size)
+void __asan_storeN_noabort(void *addr, size_t size)
 {
     asan_verify(addr, size, (uintptr_t)__builtin_extract_return_addr(__builtin_return_address(0)), true, false);
 }
-comp_no_asan void __asan_after_dynamic_init() { return; /* STUB */ }
-comp_no_asan void __asan_before_dynamic_init() { return; /* STUB */ }
-comp_no_asan void __asan_handle_no_return() { return; /* STUB */ }
+void __asan_after_dynamic_init() { return; /* STUB */ }
+void __asan_before_dynamic_init() { return; /* STUB */ }
+void __asan_handle_no_return() { return; /* STUB */ }

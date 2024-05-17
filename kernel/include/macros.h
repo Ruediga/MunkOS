@@ -7,14 +7,6 @@
 
 #define NNULL(x) ((x) ? (x) : (kpanic(0, NULL, "NULL check at failed at %s:%d\n", __FILE__, __LINE__), (void *)0))
 
-// max / min
-#define MAX(x, y) (x > y ? x : y)
-#define MIN(x, y) (x < y ? x : y)
-
-// divisions
-#define DIV_ROUNDUP(x, y) (((x) + (y) - 1) / (y))
-#define DIV_ROUNDDOWN(x, y) (x / y)
-
 // Bitmap functions
 #define BITMAP_SET_BIT(bitmap, bit_index) ((bitmap)[(bit_index) / 8] |= (1 << ((bit_index) % 8)))
 #define BITMAP_UNSET_BIT(bitmap, bit_index) ((bitmap)[(bit_index) / 8] &= ~(1 << ((bit_index) % 8)))
@@ -42,6 +34,14 @@
     out; \
 })
 
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+
+#define DIFF(x, y) (MAX((x), (y)) - MIN((x), (y)))
+
+// divisions
+#define DIV_ROUNDUP(x, y) (((x) + (y) - 1) / (y))
+#define DIV_ROUNDDOWN(x, y) ((x) / (y))
 
 // typedefs
 // ========
