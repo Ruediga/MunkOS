@@ -21,13 +21,6 @@ static void vfs_fs_list_remove()
 
 }
 
-// we could / should cache these
-// note: another idea for an api here would be to allow file systems
-// to query a vnode by a given path (which they should have, since vfs_mount() passes
-// the mount path name), which would allow the vfs to
-// - either: return the cached vnode
-// - else: alloc a new vnode and let the filesystem set it up
-// we could also manage invalidating vnodes easier, aswell as removing them
 struct vfs_vnode *vfs_vnode_alloc(struct vfs_fs *owner, size_t flags,
     struct vfs_vnode_ops *ops, enum vfs_vnode_type type, gen_dptr data)
 {

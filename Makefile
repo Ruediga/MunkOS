@@ -2,7 +2,7 @@ override TOOL_DIR := tools
 override RES_DIR := res
 override KERNEL_DIR := kernel
 
-override MAKEFLAGS += -rR
+override MAKEFLAGS += -rR -j4
 
 override IMAGE_NAME := image
 

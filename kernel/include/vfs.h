@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "rbtree.h"
+
 #define VFS_FS_OP_STATUS_OK 0
 #define VFS_FS_OP_STATUS_INVALID_ARGS 1
 
@@ -147,6 +149,41 @@ struct vfs_vnode_ops {
     int (*vn_bread)();
     int (*vn_brelse)();
 };
+
+// pathname cache entry for vnodes.
+struct pnc_entry {
+    size_t key;                     // don't move to comply with struct rbtree_data layout
+
+    rb_tree_node_t *entries_root;   // files in this directory
+    struct pnc_entry *parent;       // parent cache entry
+
+    struct pnc_entry *next, *prev;  // bucket of the same hashes
+
+    //struct vnode *vnode;
+
+    size_t name_len;
+    char *path_section;
+};
+
+extern struct pnc_entry pnc_root_dir;
+
+static inline size_t pathn_hash(const char *str, size_t len) {
+    size_t hash = 5381;
+    for (size_t i = 0; i < len; i++) {
+        hash = (hash * 33) + str[i];
+    }
+    return hash;
+}
+
+// add a given path section inside dir to the path name cache. pathn gets copied.
+struct pnc_entry *pnc_add_section(struct pnc_entry *dir, const char *section, size_t len);
+// evict a given path section from the cache. recursively invalidates all subentries.
+void pnc_evict_section(struct pnc_entry *entry);
+// find a path section and return it's pnc_entry object.
+struct pnc_entry *pnc_lookup_section(struct pnc_entry *dir, const char *section, size_t len);
+
+
+void pnc_debugprint(struct pnc_entry *rootdir, size_t depth);
 
 // kernel interface
 
