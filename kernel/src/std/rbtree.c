@@ -87,7 +87,7 @@ static void _insert_fixup(rb_tree_node_t **root, rb_tree_node_t *node)
 // return NULL on success, rb_tree_data * to duplicate if key already exists
 struct rb_tree_data *tree_insert(rb_tree_node_t **root, struct rb_tree_data *data)
 {
-    kprintf("\033[33minserting %lu\033[0m\n", data->key);
+    //kprintf("\033[33minserting %lu\033[0m\n", data->key);
     rb_tree_node_t *curr, *parent;
 
     // find pos
@@ -178,7 +178,7 @@ static rb_tree_node_t *_find_node(rb_tree_node_t *root, size_t key)
 // return NULL if key didn't exist, and a pointer to the node that has been removed
 struct rb_tree_data *tree_remove(rb_tree_node_t **root, size_t key)
 {
-    kprintf("\033[31mremoving %lu\033[0m\n", key);
+    //kprintf("\033[31mremoving %lu\033[0m\n", key);
     rb_tree_node_t *n = _find_node(*root, key);
     rb_tree_node_t *node, *x;
 

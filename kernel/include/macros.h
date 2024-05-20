@@ -1,9 +1,16 @@
 #pragma once
 
-#include "stdint.h"
+#include "compiler.h"
 
 // macros
 // ======
+
+#define kassert(cond) do { \
+        if (!(cond)) { \
+            kpanic(0, NULL, "assertion of %s failed at %s:%d in %s\n", #cond, __FILE__, __LINE__, __FUNCTION__); \
+            unreachable(); \
+        } \
+    } while (0);
 
 #define NNULL(x) ((x) ? (x) : (kpanic(0, NULL, "NULL check at failed at %s:%d\n", __FILE__, __LINE__), (void *)0))
 

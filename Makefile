@@ -6,7 +6,7 @@ override MAKEFLAGS += -rR -j4
 
 override IMAGE_NAME := image
 
-override BASE_QEMU_ARGS := -M q35 -m 8G -smp 16 -cpu host -enable-kvm
+override BASE_QEMU_ARGS := -M q35 -m 8G -smp 8 -cpu host -enable-kvm
 override EXTRA_QEMU_ARGS := -monitor stdio -d int -M smm=off \
 	-D error_log.txt -vga virtio -device pci-bridge,chassis_nr=2,id=b1 \
 	-device pci-bridge,chassis_nr=3,id=b2 -serial file:serial_log.txt \

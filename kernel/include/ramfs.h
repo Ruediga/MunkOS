@@ -24,6 +24,8 @@ struct ramdisk_file {
         btime;
 
     char name[RAMDISK_MAX_FILENAME_LENGTH];
+    size_t name_len;
+
     union {
         struct {
             struct ramdisk_file *first_subdir;

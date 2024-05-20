@@ -20,7 +20,6 @@ override CPPFLAGS := \
 
 # c flags to simulate a properly configured cross compiler
 override CFLAGS += \
-    -fsanitize=undefined \
     -Wall \
     -Werror \
     -Wextra \
@@ -44,6 +43,7 @@ override CFLAGS += \
     -Wno-maybe-uninitialized \
     -march=x86-64 \
     -mpopcnt
+    #-fsanitize=undefined \
     #-fsanitize=kernel-address \
     # built with extra debug checks: -DMUNKOS_DEBUG_BUILD
     # built with verbose printing: -DMUNKOS_VERBOSE_BUILD

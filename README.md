@@ -14,7 +14,7 @@ You're going to have the least problems using Linux distro (WSL may work too) to
 
 ### Arch / Manjaro (pacman)
 
-> sudo pacman -S git gcc build-essential make xorriso gdisk mtools curl python3 qemu
+> sudo pacman -S git gcc make xorriso gdisk mtools curl python3 qemu-full
 
 ### Ubuntu / Debian / Mint (apt)
 
@@ -98,7 +98,7 @@ nvme controller reporting ct=0 on some laptops
 
 nvme driver should not buffer writes without actually writing
 
-stacktrace array oob
+since i've had a bug with random deadlocks, I spammed a shitload of preempt-safe spinlocks everywhere -> fix this
 
 #### Features
 

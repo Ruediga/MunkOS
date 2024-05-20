@@ -2,9 +2,16 @@
 
 #include <stddef.h>
 
+#include "vfs.h"
+
 #define MAX_SECTION_LENGTH (256)
 
 #define SEPERATOR (char)('/')
+
+const char *split_path(const char *path, size_t *length);
+
+// backtrace a file in the pnc and print the full absolute path name
+void pathn_bt_print(file_handle_t hnd);
 
 // copy the (null-terminated) path into buffer. null-terminate
 // the buffered path. the assumed buffer size is 256 bytes.

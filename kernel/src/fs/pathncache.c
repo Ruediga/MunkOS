@@ -5,24 +5,14 @@
 #include "kheap.h"
 #include "kprintf.h"
 
-struct pnc_entry pnc_root_dir = {
-    .entries_root = RB_NIL,
-    .key = 0,
-    .name_len = 1,
-    .path_section = "/",
-    .parent = NULL,
-    .next = NULL,
-    .prev = NULL
-};
-
-struct pnc_entry *new_pnc_entry(struct pnc_entry *parent, const char *pathn, size_t len, size_t hash)
+struct pnc_entry *new_pnc_entry(struct vfs_vnode *vnode, struct pnc_entry *parent, const char *pathn, size_t len, size_t hash)
 {
     struct pnc_entry *ent = kmalloc(sizeof(struct pnc_entry));
     init_root_node(&ent->entries_root);
-
     ent->next = NULL;
     ent->prev = NULL;
 
+    ent->vnode = vnode;
     ent->key = hash;
     ent->parent = parent;
 
@@ -33,20 +23,20 @@ struct pnc_entry *new_pnc_entry(struct pnc_entry *parent, const char *pathn, siz
     return ent;
 }
 
-struct pnc_entry *pnc_add_section(struct pnc_entry *dir, const char *section, size_t len)
+struct pnc_entry *pnc_add_section(struct vfs_vnode *vnode, struct pnc_entry *dir, const char *section, size_t len)
 {
     struct pnc_entry *exists = pnc_lookup_section(dir, section, len);
     if (exists) {
-        kprintf("warn: %.*s already exists\n", len, section);
+        kprintf("warn: %.*s already exists\n", (int)len, section);
         return exists;
     }
 
     size_t hash = pathn_hash(section, len);
-    struct pnc_entry *new = new_pnc_entry(dir, section, len, hash);
+    struct pnc_entry *new = new_pnc_entry(vnode, dir, section, len, hash);
 
     struct pnc_entry *dup = (struct pnc_entry *)tree_insert(&dir->entries_root, (struct rb_tree_data *)new);
     if (dup) {
-        kprintf("duplicate on key %lu with string %.*s\n", hash, len, section);
+        kprintf("duplicate on key %lu with string %.*s\n", hash, (int)len, section);
         // we have a duplicate
         struct pnc_entry *old_next = dup->next;
         new->prev = dup;
@@ -57,7 +47,8 @@ struct pnc_entry *pnc_add_section(struct pnc_entry *dir, const char *section, si
         }
     }
 
-    kprintf("inserted %.*s into %.*s\n", (int)new->name_len, new->path_section, dir->name_len, dir->path_section);
+    //kprintf("inserted %.*s into %.*s\n", (int)new->name_len, new->path_section,
+    //    (int)dir->name_len, dir->path_section);
     return new;
 }
 
