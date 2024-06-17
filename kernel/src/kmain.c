@@ -112,10 +112,8 @@ void init_acpi(void)
     uacpi_init_params init_params = {
         .rsdp = (uintptr_t)rsdp_request.response->address - hhdm->offset,
  
-        .rt_params = {
-            .log_level = UACPI_LOG_ERROR,
-            .flags = 0,
-        },
+        .log_level = UACPI_LOG_ERROR,
+        .flags = 0,
     };
 
     uacpi_status ret = uacpi_initialize(&init_params);

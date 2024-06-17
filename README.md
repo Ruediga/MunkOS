@@ -34,7 +34,7 @@ run-img-uefi
 
 I recommend looking at the qemu flags in `Makefile` if qemu decides to not work.
 
-Of course, a `clean` target exists too, and the `clean-full` target gets rid of dependencies too.
+Of course, a `clean` target exists too, and the `clean-full` target gets rid of installed dependencies.
 
 If the kernel crashes or something doesn't work for you when testing on real hardware, and you don't have the same hardware as I do, your pc is broken and you should demand a refund from the manufacturer.
 

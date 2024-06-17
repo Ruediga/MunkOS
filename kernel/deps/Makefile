@@ -28,9 +28,9 @@ uACPI:
 
 include/uacpi: uACPI
 	mkdir -p include/uacpi/
-	#cp -r uACPI/include/uacpi/* include/uacpi/
+	cp -r uACPI/include/uacpi/* include/uacpi/
 	mkdir -p src/uacpi/
-	#cp -r uACPI/source/* src/uacpi/
+	cp -r uACPI/source/* src/uacpi/
 
 .PHONY: clean
 clean:

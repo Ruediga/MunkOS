@@ -1,5 +1,7 @@
 #include "uacpi_stdlib.h"
 
+#include "kevent.h"
+#include "locking.h"
 #include "memory.h"
 #include "macros.h"
 #include "kprintf.h"
@@ -7,9 +9,12 @@
 #include "kheap.h"
 #include "io.h"
 #include "mmu.h"
+#include "scheduler.h"
 #include "time.h"
 #include "cpu.h"
 #include "compiler.h"
+#include "uacpi/platform/types.h"
+#include "uacpi/status.h"
 
 // kernel api
 // ============================================================================
@@ -296,7 +301,7 @@ void *uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
     len = ALIGN_UP(len, PAGE_SIZE);
     // map as write maybe?
     mmu_map_range_linear(&kernel_pmc, start + hhdm->offset,
-        start, len, 0, MCT_WRITE_BACK);
+        start, len, MAF_WRITE, MCT_WRITE_BACK);
     return (void *)((uintptr_t)addr + hhdm->offset);
 }
 void uacpi_kernel_unmap(void *addr, uacpi_size len)
@@ -460,12 +465,12 @@ void uacpi_kernel_free_mutex(uacpi_handle hnd)
  */
 uacpi_handle uacpi_kernel_create_event(void)
 {
-    kpanic(0, NULL, "you didnt implement this");
-    return NULL;
+    kevent_t *ev = kcalloc(1, sizeof(kevent_t)); 
+    return ev;
 }
-void uacpi_kernel_free_event(uacpi_handle)
+void uacpi_kernel_free_event(uacpi_handle hnd)
 {
-    kpanic(0, NULL, "you didnt implement this");
+    kfree(hnd);
 }
 
 /*
@@ -476,7 +481,7 @@ uacpi_bool uacpi_kernel_acquire_mutex(uacpi_handle hnd, uacpi_u16 t)
 {
     struct mutex *mutex = hnd;
     spin_lock_timeout(&mutex->spinlock, t);
-    return UACPI_STATUS_OK;
+    return UACPI_TRUE;
 }
 void uacpi_kernel_release_mutex(uacpi_handle hnd)
 {
@@ -492,10 +497,16 @@ void uacpi_kernel_release_mutex(uacpi_handle hnd)
  *
  * A successful wait is indicated by returning UACPI_TRUE.
  */
-uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle, uacpi_u16)
+uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle hnd, uacpi_u16 timeout)
 {
-    kpanic(0, NULL, "you didnt implement this");
-    return false;
+    (void)timeout;
+
+    kevent_t *ev = (kevent_t *)hnd;
+    kevent_t *events[] = {ev};
+    int ret = kevents_poll(events, 1);
+    if (ret != 1)
+        return false;
+    return true;
 }
 
 /*
@@ -560,8 +571,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(
 )
 {
     (void)irq_handle;
-    kpanic(0, NULL, "you didnt implement this");
-    return UACPI_STATUS_UNIMPLEMENTED;
+    return UACPI_STATUS_OK;
 }
 
 /*
@@ -629,8 +639,7 @@ uacpi_status uacpi_kernel_schedule_work(
 )
 {
     (void)ctx;
-    kpanic(0, NULL, "you didnt implement this");
-    return UACPI_STATUS_UNIMPLEMENTED;
+    return UACPI_STATUS_OK;
 }
 
 /*
@@ -638,95 +647,25 @@ uacpi_status uacpi_kernel_schedule_work(
  */
 uacpi_status uacpi_kernel_wait_for_work_completion(void)
 {
-    kpanic(0, NULL, "you didnt implement this");
-    return UACPI_STATUS_UNIMPLEMENTED;
+    return UACPI_STATUS_OK;
+}
+
+/*
+ * Returns a unique identifier of the currently executing thread.
+ *
+ * The returned thread id cannot be UACPI_THREAD_ID_NONE.
+ */
+uacpi_thread_id uacpi_kernel_get_thread_id(void)
+{
+    // [FIXME]
+    int_status_t is = preempt_fetch_disable();
+    int tid = scheduler_curr_task()->tid;
+    preempt_restore(is);
+
+    (void)tid;
+    return (void *)(uint64_t)0x88;
 }
 
 #ifdef __cplusplus
 }
 #endif
-
-// ============================================================================
-
-
-
-
-void *uacpi_memcpy(void *dest, const void *src, size_t sz)
-{
-    return memcpy(dest, src, sz);
-}
-void *uacpi_memset(void *dest, int src, size_t cnt)
-{
-    return memset(dest, src, cnt);
-}
-int uacpi_memcmp(const void *src1, const void *src2, size_t cnt)
-{
-    const uint8_t *b1 = (const uint8_t *)src1;
-    const uint8_t *b2 = (const uint8_t *)src2;
-    for (size_t i = 0; i < cnt; i++)
-        if (b1[i] < b2[i])
-            return -1;
-        else if (b1[i] > b2[i])
-            return 1;
-        else
-            continue;
-    return 0;
-}
-int uacpi_strncmp(const char *src1, const char *src2, size_t maxcnt)
-{
-    size_t len1 = uacpi_strnlen(src1, maxcnt);
-    size_t len2 = uacpi_strnlen(src2, maxcnt);
-    if (len1 < len2)
-        return -1;
-    else if (len1 > len2)
-        return 1;
-    return uacpi_memcmp(src1, src2, len1);
-}
-int uacpi_strcmp(const char *src1, const char *src2)
-{
-    size_t len1 = uacpi_strlen(src1);
-    size_t len2 = uacpi_strlen(src2);
-    if (len1 < len2)
-        return -1;
-    else if (len1 > len2)
-        return 1;
-    return uacpi_memcmp(src1, src2, len1);
-}
-void *uacpi_memmove(void *dest, const void *src, size_t len)
-{
-    if (src == dest)
-        return dest;
-    // Refactored from https://stackoverflow.com/a/65822606
-    uint8_t *dp = (uint8_t *)dest;
-    const uint8_t *sp = (uint8_t *)src;
-    if (sp < dp && sp + len > dp)
-    {
-        sp += len;
-        dp += len;
-        while (len-- > 0)
-            *--dp = *--sp;
-    }
-    else
-        while (len-- > 0)
-            *dp++ = *sp++;
-    return dest;
-}
-size_t uacpi_strnlen(const char *src, size_t maxcnt)
-{
-    size_t i = 0;
-    for (; i < maxcnt && src[i]; i++)
-        ;
-    return i;
-}
-size_t uacpi_strlen(const char *src)
-{
-    return strlen(src);
-}
-int uacpi_snprintf(char *dest, size_t n, const char *format, ...)
-{
-    va_list list;
-    va_start(list, format);
-    int ret = ksnprintf(dest, n, format, list);
-    va_end(list);
-    return ret;
-}
